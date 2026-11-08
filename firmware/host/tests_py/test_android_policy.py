@@ -5,11 +5,16 @@ Android app therefore must not write to the system log, to files, to preferences
 database, because a road name could end up in any of them. These tests fail if such an API
 appears in the app's source, so the rule is checked, not just promised.
 
-DECISIONS.md D-43: the app has no third-party dependencies. Adding one should be a decision,
-recorded, and this test changed in the same commit.
+DECISIONS.md D-43 and D-53: the app has no third-party dependencies except Google's Navigation
+SDK, which only the :navsdk module uses. Adding another should be a decision, recorded, and this
+test changed in the same commit.
+
+DECISIONS.md D-13 and D-54: Google types appear only in :navsdk. The Maps Platform API key is a
+secret and is never committed.
 """
 import pathlib
 import re
+import subprocess
 import unittest
 
 import helpers
@@ -89,8 +94,23 @@ class NoThirdPartyDependencies(unittest.TestCase):
         block = re.search(r"dependencies\s*\{(.*?)\n\}", text, re.S).group(1)
         return [line.strip() for line in block.splitlines() if line.strip()]
 
-    def test_the_app_depends_on_nothing_but_the_link_module(self):
-        self.assertEqual(self.dependencies("app"), ['implementation(project(":link"))'])
+    def test_the_app_depends_only_on_our_own_modules_and_the_desugaring_library(self):
+        self.assertEqual(self.dependencies("app"), [
+            'implementation(project(":link"))',
+            'implementation(project(":navsdk"))',
+            "coreLibraryDesugaring(libs.desugar.jdk.libs)",
+        ])
+
+    def test_only_the_navsdk_module_depends_on_googles_navigation_sdk(self):
+        self.assertEqual(self.dependencies("navsdk"), [
+            'api(project(":protocol"))',
+            "api(libs.navigation.sdk)",
+            "coreLibraryDesugaring(libs.desugar.jdk.libs)",
+            "testImplementation(libs.junit.jupiter)",
+            "testRuntimeOnly(libs.junit.platform.launcher)",
+        ])
+        for module in ("app", "link", "protocol"):
+            self.assertNotIn("navigation.sdk", "\n".join(self.dependencies(module)), module)
 
     def test_the_pure_modules_depend_only_on_each_other_and_on_the_test_framework(self):
         self.assertEqual(self.dependencies("link"), [
@@ -105,8 +125,62 @@ class NoThirdPartyDependencies(unittest.TestCase):
 
     def test_the_pure_modules_do_not_import_android(self):
         for path in list(ANDROID.glob("protocol/src/**/*.kt")) + list(ANDROID.glob("link/src/**/*.kt")):
-            self.assertNotRegex(path.read_text(encoding="utf-8"), r"^import (android|androidx)\.", str(path))
+            self.assertNotRegex(path.read_text(encoding="utf-8"), r"(?m)^import (android|androidx)\.", str(path))
 
+    def test_google_types_appear_only_in_the_navsdk_module(self):
+        sources = [p for p in ANDROID.glob("*/src/**/*.kt") if p.relative_to(ANDROID).parts[0] != "navsdk"]
+        self.assertGreater(len(sources), 10)
+        for path in sources:
+            text = path.read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"(?m)^import com\.google\.", str(path.relative_to(REPO)))
+        navsdk = "\n".join(p.read_text(encoding="utf-8") for p in ANDROID.glob("navsdk/src/main/**/*.kt"))
+        self.assertIn("import com.google.android.libraries.navigation", navsdk)    # the check can see real imports
+
+
+class NavigationSetup(unittest.TestCase):
+    def test_fine_location_is_declared_on_every_android_version(self):
+        # With maxSdkVersion=30 the merged manifest lost the permission on Android 12 and later
+        # and the Navigation SDK could not start (found in Phase 4 by reading the merged manifest).
+        manifest = (ANDROID / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
+        declaration = re.search(r'<uses-permission[^>]*android\.permission\.ACCESS_FINE_LOCATION"[^>]*/>', manifest)
+        self.assertIsNotNone(declaration)
+        self.assertNotIn("maxSdkVersion", declaration.group(0))
+
+    def test_the_api_key_comes_from_a_placeholder_and_the_secrets_file_is_ignored(self):
+        manifest = (ANDROID / "app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
+        self.assertRegex(manifest, r'android:name="com\.google\.android\.geo\.API_KEY"\s+android:value="\$\{MAPS_API_KEY\}"')
+        self.assertIn("android/secrets.properties", (REPO / ".gitignore").read_text(encoding="utf-8"))
+
+    def files_that_could_be_committed(self):
+        """What Git would commit; or, in a plain copy of the tree with no Git, every file except build output
+        and the git-ignored local files (which may legitimately hold the key)."""
+        listed = subprocess.run(["git", "ls-files", "-co", "--exclude-standard"], cwd=REPO, capture_output=True, text=True)
+        if listed.returncode == 0:
+            return [REPO / name for name in listed.stdout.splitlines()]
+        skip_dirs = {".git", ".gradle", ".kotlin", ".pio", "build", "out", "__pycache__", ".idea"}
+        skip_files = {"secrets.properties", "local.properties"}
+        found = []
+        for path in REPO.rglob("*"):
+            if path.is_file() and not (set(path.relative_to(REPO).parts[:-1]) & skip_dirs) and path.name not in skip_files:
+                found.append(path)
+        return found
+
+    def test_no_google_api_key_is_committed_anywhere(self):
+        key = re.compile(r"AIza[0-9A-Za-z_\-]{35}")
+        self.assertTrue(key.search("x" + "AIza" + "S" * 35))                    # the pattern works
+        files = self.files_that_could_be_committed()
+        self.assertGreater(len(files), 100)                                      # it really looked at the tree
+        hits = []
+        for path in files:
+            if path.suffix in {".jar", ".png", ".bin", ".elf"} or not path.is_file():
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                continue
+            if key.search(text):
+                hits.append(str(path.relative_to(REPO)))
+        self.assertEqual(hits, [], "a Google API key is in: %s" % hits)
 
 class PinnedToolchain(unittest.TestCase):
     def test_the_gradle_distribution_is_pinned_with_a_checksum(self):

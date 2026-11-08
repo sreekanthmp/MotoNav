@@ -7,6 +7,7 @@ firmware/host/out/
 android/.gradle/
 android/**/build/
 android/local.properties
+android/secrets.properties
 android/.kotlin/
 *.iml
 .idea/

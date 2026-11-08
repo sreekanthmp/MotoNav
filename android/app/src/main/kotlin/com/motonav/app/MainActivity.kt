@@ -18,7 +18,10 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.ArrayAdapter
+import android.text.InputType
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
@@ -27,12 +30,14 @@ import com.motonav.link.Clock
 import com.motonav.link.LinkListener
 import com.motonav.link.LinkSession
 import com.motonav.link.LinkState
+import com.motonav.navsdk.NavFeed
+import com.motonav.navsdk.NavigationController
 import com.motonav.protocol.Scenarios
 import com.motonav.protocol.StatusReport
 
 /**
- * A minimal screen for testing the link to a MotoNav with simulated navigation (Phase 3).
- * It is not the product UI. COMPILE-CHECKED ONLY: never run on a phone.
+ * A minimal screen for testing the link to a MotoNav, with simulated messages (Phase 3) or with
+ * Google's navigation (Phase 4). It is not the product UI. COMPILE-CHECKED ONLY: never run on a phone.
  *
  * Nothing is stored. Road names appear on screen only, and nothing is written to the system log
  * or to disk (DECISIONS.md D-05); a test checks that this source never uses android.util.Log.
@@ -47,6 +52,7 @@ class MainActivity : Activity(), LinkListener, DeviceScanner.Listener {
     private var scanner: DeviceScanner? = null
     private var port: AndroidGattPort? = null
     private var session: LinkSession? = null
+    private var navController: NavigationController? = null
 
     private var playing = false
     private var nextScenario = 0
@@ -62,10 +68,18 @@ class MainActivity : Activity(), LinkListener, DeviceScanner.Listener {
     private lateinit var wrongButton: Button
     private lateinit var scenarioSpinner: Spinner
     private lateinit var wrongSpinner: Spinner
+    private lateinit var destinationLat: EditText
+    private lateinit var destinationLon: EditText
+    private lateinit var startLat: EditText
+    private lateinit var startLon: EditText
+    private lateinit var simulateBox: CheckBox
+    private lateinit var feedView: TextView
 
     private val tick = object : Runnable {
         override fun run() {
             session?.tick()
+            val c = NavFeed.counters
+            feedView.text = "Navigation feed: received ${c.received}, sent to the device ${c.sent}, ignored ${c.ignored}, unreadable ${c.malformed}"
             main.postDelayed(this, 1_000)
         }
     }
@@ -140,6 +154,22 @@ class MainActivity : Activity(), LinkListener, DeviceScanner.Listener {
         }
         column.addView(wrongButton)
 
+        column.addView(section("Real navigation (Google Navigation SDK)"))
+        column.addView(text("Needs a Google Maps Platform API key (see android/README.md), location permission and acceptance of Google's terms. " +
+            "Leave the start fields empty to start from the phone's real position.", 12f))
+        destinationLat = coordinateField("Destination latitude, e.g. 12.9716")
+        destinationLon = coordinateField("Destination longitude, e.g. 77.5946")
+        startLat = coordinateField("Start latitude (optional, simulated drive only)")
+        startLon = coordinateField("Start longitude (optional, simulated drive only)")
+        column.addView(destinationLat); column.addView(destinationLon); column.addView(startLat); column.addView(startLon)
+        simulateBox = CheckBox(this).apply { text = "Simulated drive (5x speed, no driving needed)"; isChecked = true }
+        column.addView(simulateBox)
+        column.addView(button("1. Start the Navigation SDK") { startNavigationSdk() })
+        column.addView(button("2. Start the route") { startRoute() })
+        column.addView(button("Stop the route") { navController?.stop() })
+        feedView = text("Navigation feed: not started", 13f)
+        column.addView(feedView)
+
         column.addView(section("Device status"))
         statusView = text("(none yet)", 14f)
         column.addView(statusView)
@@ -147,6 +177,10 @@ class MainActivity : Activity(), LinkListener, DeviceScanner.Listener {
         column.addView(section("Log (kept in memory only)"))
         logView = text("", 12f).apply { typeface = Typeface.MONOSPACE; setTextIsSelectable(true) }
         column.addView(logView)
+
+        // Everything the navigation feed produces goes to the device. Before the link is ready the
+        // newest state is kept and sent when it is.
+        NavFeed.setSink { update -> session?.submit(update) }
 
         render(LinkState.Idle)
         main.postDelayed(tick, 1_000)
@@ -156,6 +190,8 @@ class MainActivity : Activity(), LinkListener, DeviceScanner.Listener {
         main.removeCallbacks(tick)
         main.removeCallbacks(playStep)
         scanner?.cancel()
+        NavFeed.setSink(null)
+        navController?.stop()
         session?.stop()
         port?.close()
         super.onDestroy()
@@ -190,12 +226,62 @@ class MainActivity : Activity(), LinkListener, DeviceScanner.Listener {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQUEST_PERMISSIONS) return
-        if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            findAndConnect()
-        } else {
-            addLog("Bluetooth permission was refused; the app cannot work without it.")
+        val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+        when (requestCode) {
+            REQUEST_PERMISSIONS ->
+                if (allGranted) findAndConnect() else addLog("Bluetooth permission was refused; the app cannot work without it.")
+            REQUEST_LOCATION -> {
+                // Notifications (Android 13 and later) are optional; location is not.
+                val location = permissions.indexOf(Manifest.permission.ACCESS_FINE_LOCATION)
+                if (location >= 0 && grantResults.getOrNull(location) == PackageManager.PERMISSION_GRANTED) {
+                    startNavigationSdk()
+                } else {
+                    addLog("Location permission was refused; navigation cannot start.")
+                }
+            }
         }
+    }
+
+    // ---- real navigation ----
+
+    private fun controller(): NavigationController =
+        navController ?: NavigationController(this) { addLog(it) }.also { navController = it }
+
+    private fun startNavigationSdk() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            val wanted = if (Build.VERSION.SDK_INT >= 33) {
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+            requestPermissions(wanted, REQUEST_LOCATION)
+            return
+        }
+        controller().initialize()
+    }
+
+    private fun startRoute() {
+        val destination = readCoordinates(destinationLat, destinationLon, "destination") ?: return
+        val start = if (startLat.text.isBlank() && startLon.text.isBlank()) null
+        else readCoordinates(startLat, startLon, "start") ?: return
+        controller().start(destination.first, destination.second, simulateBox.isChecked, start)
+    }
+
+    /** Reads a latitude and longitude from two fields, or says what is wrong and returns null. */
+    private fun readCoordinates(latField: EditText, lonField: EditText, what: String): Pair<Double, Double>? {
+        val lat = latField.text.toString().trim().toDoubleOrNull()
+        val lon = lonField.text.toString().trim().toDoubleOrNull()
+        if (lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0) {
+            addLog("The $what needs a latitude (-90 to 90) and a longitude (-180 to 180).")
+            return null
+        }
+        return lat to lon
+    }
+
+    private fun coordinateField(hintText: String): EditText = EditText(this).apply {
+        hint = hintText
+        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+        setSingleLine()
     }
 
     override fun onFound(device: BluetoothDevice, rssi: Int) {
@@ -295,6 +381,7 @@ class MainActivity : Activity(), LinkListener, DeviceScanner.Listener {
 
     private companion object {
         const val REQUEST_PERMISSIONS = 1
+        const val REQUEST_LOCATION = 2
         const val MAX_LOG_LINES = 60
     }
 }

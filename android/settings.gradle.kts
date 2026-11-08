@@ -4,6 +4,7 @@
 //   :protocol  pure Kotlin/JVM  the BLE protocol: model, frame codec, STATUS, simulated messages
 //   :link      pure Kotlin/JVM  the connection logic, written against an interface so it is
 //                               tested without a phone (GattPort)
+//   :navsdk    Android library  the ONLY place Google Navigation SDK types appear (Phase 4)
 //   :app       Android          the thin Android adapter (BluetoothGatt) and a minimal screen
 pluginManagement {
     repositories {
@@ -22,4 +23,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MotoNav"
-include(":protocol", ":link", ":app")
+include(":protocol", ":link", ":navsdk", ":app")

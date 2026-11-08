@@ -8,6 +8,12 @@
 
   Android 11 (API 30) and lower: the legacy permissions, plus location, which those versions
   require for a Bluetooth scan.
+
+  Location (Phase 4): the Navigation SDK needs ACCESS_FINE_LOCATION on EVERY Android version to
+  navigate. It is therefore declared without a maxSdkVersion. (With "maxSdkVersion=30" the merged
+  manifest lost the permission on Android 12 and later and navigation could not start: found by
+  reading the merged manifest, and a test now guards it.) The BLE scan is still declared
+  neverForLocation: the app does not derive its position from scan results.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -22,9 +28,7 @@
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- usesPermissionFlags exists from Android 12; older versions ignore it, and they use the
          location permission declared above instead. -->
     <uses-permission
@@ -42,6 +46,12 @@
         android:icon="@drawable/ic_launcher"
         android:label="MotoNav"
         android:theme="@android:style/Theme.DeviceDefault.Light">
+
+        <!-- The Navigation SDK reads its API key from here. The value comes from a Gradle
+             placeholder and is never in the source. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
 
         <activity
             android:name=".MainActivity"

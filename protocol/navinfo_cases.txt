@@ -1,0 +1,39 @@
+# MotoNav: Google Navigation SDK feed messages, as the Android code converts them.
+# Do not edit the frames by hand: the Kotlin test NavInfoGoldenTest (android/navsdk) fails if its
+# output differs. To rewrite them after a deliberate change:
+#   MOTONAV_PRINT_NAVINFO=/tmp/out.txt ./gradlew :navsdk:testDebugUnitTest      (then copy the frame column)
+#
+# Format, one case per line:   name ; frame (hex) ; what the display must show
+# The frames are numbered 1, 2, 3 ... and sent in this order to ONE connection. The third column is
+# the text the firmware prints for what it would draw (its `expect:` line). It was WRITTEN AND
+# REVIEWED BY HAND, case by case, against the meaning of the Google message the case stands for.
+# A Python test (firmware/host/tests_py/test_navinfo_cases.py) sends the frames through the
+# firmware's real receiver and compares. Nothing here involves a phone or a radio.
+#
+# What each case stands for (NavInfo / StepInfo fields):
+#   straight_1200 .. fork_right_900   ordinary maneuvers, from the feed's ENROUTE state
+#   sharp_right_120                   120 m shows as 100 m: the display rounds distances (D-22)
+#   uturn_counterclockwise_80         Google's counterclockwise U-turn is the left-hand icon
+#   uturn_clockwise_80                Google's clockwise U-turn is the right-hand icon
+#   distance_unknown                  the feed gave no distance: the display shows "--", not 0
+#   road_name_non_latin               an Indian-script road name: the 5x7 font cannot draw it, so
+#                                     the road line is empty (DECISIONS.md D-20). A known limitation.
+#   rerouting / stopped / arrived     REROUTING, STOPPED (navigation ended) and STOPPED after the
+#                                     SDK's arrival event
+straight_1200 ; 01010119010000B0040000401F0000840300000952696E6720526F61647BF6 ; screen=Navigating icon=Straight distance="1.2 km" road="Ring Road"
+turn_left_450 ; 01010217010100C2010000401F000084030000074D4720526F61648EC6 ; screen=Navigating icon=TurnLeft distance="450 m" road="MG Road"
+ramp_right_300 ; 010103150102002C010000401F000084030000054E482034389F60 ; screen=Navigating icon=TurnRight distance="300 m" road="NH 48"
+keep_left_200 ; 0101041F010300C8000000401F0000840300000F4F757465722052696E6720526F6164814B ; screen=Navigating icon=SlightLeft distance="200 m" road="Outer Ring Road"
+fork_right_900 ; 0101051B01040084030000401F0000840300000B4D79736F726520526F6164D77F ; screen=Navigating icon=SlightRight distance="900 m" road="Mysore Road"
+sharp_right_120 ; 0101061D01060078000000401F0000840300000D436875726368205374726565747F74 ; screen=Navigating icon=SharpRight distance="100 m" road="Church Street"
+uturn_counterclockwise_80 ; 0101071C01070050000000401F0000840300000C4272696761646520526F616426B8 ; screen=Navigating icon=UTurnLeft distance="80 m" road="Brigade Road"
+uturn_clockwise_80 ; 0101081C01080050000000401F0000840300000C4272696761646520526F6164810E ; screen=Navigating icon=UTurnRight distance="80 m" road="Brigade Road"
+roundabout_exit3_200 ; 0101091C010903C8000000401F0000840300000C53746174696F6E20526F61640B59 ; screen=Navigating icon=Roundabout exit=3 distance="200 m" road="Station Road"
+destination_approach_60 ; 01010A1B010A003C000000401F0000840300000B5061726B205374726565740AAB ; screen=Navigating icon=Arrived distance="60 m" road="Park Street"
+distance_unknown ; 01010B17010200FFFFFFFF401F000084030000074D4720526F61644CE9 ; screen=Navigating icon=TurnRight distance="--" road="MG Road"
+road_name_full_fallback ; 01010C2301010096000000401F000084030000134D616861746D612047616E64686920526F6164E4D4 ; screen=Navigating icon=TurnLeft distance="150 m" road="Mahatma Gandhi Road"
+road_name_non_latin ; 01010D2F010100FA000000401F0000840300001FE0B4AEE0B4B9E0B4BEE0B4A4E0B58DE0B4AEE0B4BE20E0B497E0B4BEE0B4A8DA05 ; screen=Navigating icon=TurnLeft distance="250 m" road=""
+road_name_long ; 01010E2F01000088130000401F0000840300001F536972204D6F6B73686167756E64616D205669737665737661726179612052CC19 ; screen=Navigating icon=Straight distance="5.0 km" road="Sir Mokshagundam Visvesvaraya R"
+rerouting ; 01010F10020000FFFFFFFFFFFFFFFFFFFFFFFF00E98A ; screen=Rerouting
+stopped ; 01011010000000FFFFFFFFFFFFFFFFFFFFFFFF00C539 ; screen=Ready
+arrived ; 01011110030A0000000000FFFFFFFFFFFFFFFF0026B7 ; screen=Arrived
