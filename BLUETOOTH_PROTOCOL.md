@@ -2,12 +2,14 @@
 
 **Status.** The firmware side is **implemented** and **host-tested**: the frame codec, the
 receiver and its sequence rules, and the path from received bytes to what the display shows
-(77 C++ and 76 Python tests, including fuzzing and a cross-check against an independent
+(77 C++ and 93 Python tests, including fuzzing and a cross-check against an independent
 implementation). The Bluetooth radio code is **compile-checked only**. **It has never run over a
-real Bluetooth link**, because no radio hardware was available. The Android side is **not
-implemented** (Phase 3). Where this document says what the firmware "does", that is what the
+real Bluetooth link**, because no radio hardware was available. The phone side is a test sender
+for Android (`android/`, Phase 3): its protocol code is **host-tested** against the same vectors
+(138 Kotlin tests); its Bluetooth adapter is **compile-checked only** and has never run on a phone.
+The real navigation app is not implemented (Phases 4 and 5). Where this document says what the firmware "does", that is what the
 tested logic does; how a real phone and the real radio behave is unknown until the device tests
-in [TESTING.md](TESTING.md) section 5 are run.
+in [TESTING.md](TESTING.md) sections 5 and 6 are run.
 
 ## 1. Roles
 
@@ -214,7 +216,10 @@ This is how a phone, or a tester using a generic BLE app, sees whether a message
 - `frame_tool.py` is an **independent implementation** of this format in Python (standard library
   only). The firmware's C++ codec and the tool are checked against the same vectors and against each
   other on 3,000 random frames, so a disagreement is caught by the tests. **The Android app must
-  pass the same vectors.**
+  pass the same vectors.** (The Kotlin code in `android/protocol` does: it decodes all 45 vectors as stated and re-encodes the 23 valid ones byte for byte.)
+- [`protocol/scenarios.txt`](protocol/scenarios.txt): the 12 simulated navigation messages and 5
+  deliberately wrong ones, as the Python tool makes them. The Android code builds the same messages
+  independently and a test compares them byte for byte.
 - `python protocol/frame_tool.py scenarios` prints ready-to-send messages for testing with a
   generic BLE app (see [TESTING.md](TESTING.md) section 5).
 - `python protocol/frame_tool.py encode ...` and `decode ...` build and check single frames.

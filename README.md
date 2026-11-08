@@ -17,10 +17,10 @@ Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
 |---|---|---|
 | Phase 0 — discovery and planning | Implemented (documents only) | Approved. |
 | Phase 1 — display prototype | Implemented and host-tested. **Not device-tested.** | Approved. Physical hardware validation (T1-T6) is prepared and **not yet run**. Results in [TESTING.md](TESTING.md). |
-| ESP32 firmware: model, screens, simulation, diagnostics logic | Host-tested | 77 C++ and 76 Python tests pass on a normal computer (these include the Phase 2 protocol tests). |
+| ESP32 firmware: model, screens, simulation, diagnostics logic | Host-tested | 77 C++ and 93 Python tests pass on a normal computer (these include the Phase 2 protocol tests). |
 | ESP32 firmware: device code (`main.cpp`, SSD1306 adapter) | Compile-checked for the classic-ESP32 DevKit target (0 warnings). **Never run on a board.** | See [TESTING.md](TESTING.md). |
 | Phase 2 — Bluetooth LE link, simulated messages | Codec and receiver **implemented and host-tested**. Radio code (`motonav_ble`) **compile-checked only**. **Never run over a real Bluetooth link.** | Prepared at the project owner's request while the Phase 1 hardware validation is pending. Protocol: [BLUETOOTH_PROTOCOL.md](BLUETOOTH_PROTOCOL.md). Device tests B1-B7 are **not run**: [TESTING.md](TESTING.md) section 5. Awaiting review. |
-| Android app | Planned | Phase 3. Not started. |
+| Phase 3 — Android test sender | Protocol code and connection logic **implemented and host-tested** (138 Kotlin tests, no phone). The Android app (`android/app`) is **compile-checked only**. **Never run on a phone, never run against a MotoNav.** | Sends the simulated messages of Phase 2 from a phone. Not the navigation app. Prepared while the hardware validation is pending. See [android/README.md](android/README.md); phone tests P1-P8 are **not run**: [TESTING.md](TESTING.md) section 6. Awaiting review. |
 | Google Navigation SDK integration | Planned | Phase 4. Commercial-terms questions are open, see [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md#technical-risks-and-unknowns). |
 | Hardware | **Provisional** | From product listings: classic ESP32 30-pin DevKit (CP2102), 0.96" 128x64 I2C OLED, expected SSD1306. **Not verified on the parts.** Verification steps and diagnostics are in [HARDWARE.md](HARDWARE.md) section 4. |
 
@@ -30,8 +30,10 @@ computer) plus compile checks. The hardware is identified only from product
 listings, so the pin numbers, the display size and the OLED address in
 `firmware/platformio.ini` are provisional until verified. The Phase 2 Bluetooth
 firmware is a separate environment, `motonav_ble`; the Phase 1 environment
-`motonav`, which the hardware tests T1 to T6 check, is unchanged. There is no
-Android code. The Phase 2 B tests should wait until T1 to T4 have passed.
+`motonav`, which the hardware tests T1 to T6 check, is unchanged. The Android
+test sender exists but has not run on a phone, and there is no Google Navigation
+SDK integration yet. The Phase 2 B tests should wait until T1 to T4 have passed,
+and the Phase 3 P tests until B1 and B2 have passed.
 
 ## Try it
 
@@ -40,7 +42,7 @@ Host tests and screen images (need `g++`, `make` and Python 3; Pillow for the im
 ```bash
 cd firmware/host
 make test        # layering check + 77 C++ tests, with sanitizers
-make test-tools  # 76 Python tests: diagnostics simulations, log analyser, Bluetooth reference tool, docs check
+make test-tools  # 93 Python tests: diagnostics simulations, log analyser, Bluetooth reference tool, docs and source checks
 make render      # writes out/*.pbm and out/montage_*.png to look at
 ```
 
@@ -64,6 +66,15 @@ pio run -e motonav_ble -t upload && pio device monitor
 python ../protocol/frame_tool.py scenarios --compact   # messages to paste into a BLE app
 ```
 
+Phase 3 (Android), tests on a computer need JDK 17 or newer; building the app also needs the Android SDK
+(platform 37.0, build-tools 36.0.0). The phone tests P1 to P8 are in [TESTING.md](TESTING.md) section 6:
+
+```bash
+cd android
+./gradlew :protocol:test :link:test         # 138 Kotlin tests, no phone or SDK needed
+./gradlew :app:lintDebug :app:assembleDebug     # lint (warnings are errors) and the debug APK
+```
+
 ## Documents
 
 | Document | Purpose |
@@ -73,4 +84,5 @@ python ../protocol/frame_tool.py scenarios --compact   # messages to paste into 
 | [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | Phases, risks, Phase 1 results and acceptance criteria |
 | [DECISIONS.md](DECISIONS.md) | Technical decisions and their status |
 | [BLUETOOTH_PROTOCOL.md](BLUETOOTH_PROTOCOL.md) | The phone-to-device Bluetooth LE protocol, version 1: GATT layout, frame format, validation, sequence rules |
+| [android/README.md](android/README.md) | The Android project: modules, build, pinned versions, the rules the code keeps |
 | [TESTING.md](TESTING.md) | What was tested, how, with actual results; device test procedures |

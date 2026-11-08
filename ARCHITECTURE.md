@@ -1,11 +1,13 @@
 # Architecture
 
-**Status after Phase 2:** the firmware layers in sections 3 and 4 (model,
+**Status after Phase 3:** the firmware layers in sections 3 and 4 (model,
 rendering, simulation) are **Implemented and host-tested**. The firmware side of
 the Bluetooth link (frame codec, receiver, section 1) is **Implemented and
 host-tested**; the Bluetooth radio code is **compile-checked only** and has never
-run over a real link. The phone side (Android app, Google SDK) is still
-**Proposed** (Phases 3-4). Facts marked
+run over a real link. The phone side is a test sender: its protocol code and
+connection logic are **Implemented and host-tested**, its Bluetooth adapter and
+screen are **compile-checked only** and have never run on a phone. The navigation
+side (Google Navigation SDK, Phases 4-5) is still **Proposed**. Facts marked
 **Verified** were read directly from Google's documentation on 2026-11-08 (the
 pages were last updated 2026-11-03). Everything else is a proposal or an
 assumption.
@@ -41,6 +43,33 @@ reads GPS, and never needs the internet.
 
 No further layers are proposed. In particular: no dependency-injection
 framework, no plugin system, no message bus.
+
+### Android sender (Phase 3: logic host-tested, Bluetooth adapter compile-checked only)
+
+```
+ :app (Android)                              :link (pure Kotlin)                 :protocol (pure Kotlin)
+ MainActivity ---- submit(NavUpdate) ----->  LinkSession  ---- encode ---------> FrameCodec, SequenceCounter
+ (test screen)                               (state machine)                     NavUpdate, Scenarios, StatusReport
+      ^                                           |  GattPort (interface)
+      |                                           v
+ AndroidGattPort  <--- start operations ---- connect, discover, MTU, notify, write
+ DeviceScanner    ---- callbacks, on the main thread ---> onConnected, onMtuChanged, onWriteComplete, ...
+```
+
+- Everything that *decides* is in `:link` and `:protocol`, which need no phone and no Android SDK:
+  the order of set-up, refusing an MTU below 56, one write at a time, sending only the newest state
+  when updates outrun the device, restarting sequence numbers on each connection, sending the newest
+  state again after a reconnection, timeouts, and a reason for every failure. They are tested with a
+  fake `GattPort`, including thousands of random event orders.
+- `:app` only starts Bluetooth operations and passes results on. It was built and linted but never run.
+- The Kotlin protocol code is a **third** implementation (after C++ and Python). It is checked
+  against the shared files `protocol/vectors.txt` and `protocol/scenarios.txt`, so any disagreement
+  between the three is caught by tests.
+- Road names stay in memory only: no system log, files, preferences or database (D-05), checked by a
+  test on the sources. In Phase 4 the Google types will be confined to one place (D-13) that converts
+  the SDK's data into a `NavUpdate`; nothing below that line knows about Google.
+- Not in Phase 3: the Google Navigation SDK, automatic reconnection, running with the screen off
+  (a foreground service), and any real UI. Those are Phases 4 and 5.
 
 ### Bluetooth receive path (Phase 2: Implemented, radio code compile-checked only)
 
@@ -258,14 +287,18 @@ show the straight arrow.
 
 ## 4. Repository structure
 
-**Implemented (Phases 1 and 2):**
+**Implemented (Phases 1 to 3):**
 
 ```
 MotoNav/
 ├── README.md  ARCHITECTURE.md  HARDWARE.md  DEVELOPMENT_PLAN.md  DECISIONS.md  TESTING.md
 ├── BLUETOOTH_PROTOCOL.md         Phase 2: the phone-to-device protocol, version 1
-├── protocol/                     Phase 2: frame_tool.py (independent Python implementation) and
-│                                 vectors.txt (shared test vectors the firmware and Android must pass)
+├── protocol/                     Phase 2: frame_tool.py (independent Python implementation),
+│                                 vectors.txt and scenarios.txt (shared test files, both generated)
+├── android/                      Phase 3: Gradle project (Gradle 9.6.0, AGP 9.5.1, Kotlin 2.2.10)
+│   ├── protocol/                 pure Kotlin: model, frame codec, STATUS parser, simulated messages
+│   ├── link/                     pure Kotlin: the connection state machine and the GattPort interface
+│   └── app/                      Android: BluetoothGatt adapter, scanner, one test screen
 └── firmware/
     ├── platformio.ini            envs: motonav (default), motonav_ble, hw_check, oled_check; provisional hardware values
     ├── src/                      device-only code (the only code that touches hardware)
@@ -294,17 +327,14 @@ MotoNav/
         ├── hw_check_sim.cpp  oled_check_sim.cpp  stats_sample.cpp   run the real tools / make synthetic logs
         ├── frame_check.cpp  ble_script.cpp   run the real frame decoder / receiver on hex input (cross-check, test messages)
         ├── analyze_log.py        judges a long-run serial log (T5, T6)
-        ├── tests_py/             76 Python tests
+        ├── tests_py/             93 Python tests
         └── golden/screens.txt    regression hashes of every screen at 128x64 and 128x32
 
 docs/reference/                   generated images and expected outputs used by TESTING.md
 ```
 
-**Planned (not started):**
-
-```
-└── android/                        Phase 3 and later
-```
+**Planned (not started):** the Google Navigation SDK integration (Phase 4), and the product app
+and its reliability work (Phase 5), both inside `android/`.
 
 `protocol/vectors.txt` holds known-good encoded messages (hex) and the exact result a receiver
 must give for each. The firmware tests and the Android tests must agree with it. It is the

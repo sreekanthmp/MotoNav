@@ -11,15 +11,17 @@ Every result in this document carries one of three labels, and they are never mi
   has not marked any hardware test as passed. Every hardware result below says
   `NOT RUN` until the board owner fills it in with real evidence.
 
-Last updated: Phase 2 (Bluetooth LE) prepared; Phase 1 hardware validation still pending (2026-11-08).
+Last updated: Phase 3 (Android test sender) prepared; the Phase 1 hardware validation is still pending (2026-11-08).
 
 ## 0. Status at a glance
 
 | Area | Label | Status |
 |---|---|---|
 | Firmware logic: model, screens, simulation, diagnostics verdicts, Bluetooth frame codec and receiver (77 C++ tests) | Host-tested | pass |
-| Log analyser, `hw_check` and `oled_check` simulations, Bluetooth reference tool, documentation checks (76 Python tests) | Host-tested | pass |
+| Log analyser, `hw_check` and `oled_check` simulations, Bluetooth reference tool, documentation and source checks (93 Python tests) | Host-tested | pass |
+| Android protocol code and connection logic, against the shared vectors and a fake Bluetooth (106 + 32 Kotlin tests) | Host-tested | pass |
 | Firmware (`motonav`), both diagnostics and the Phase 2 firmware (`motonav_ble`) build with the real ESP32 toolchain | Compile-checked | pass, 0 warnings |
+| Android app builds with the real Android toolchain (0 compiler warnings, lint clean) | Compile-checked | pass |
 | **T1** ESP32 identification | Device-tested | **NOT RUN** |
 | **T2** I2C detection | Device-tested | **NOT RUN** |
 | **T3** OLED controller validation | Device-tested | **NOT RUN** |
@@ -27,6 +29,7 @@ Last updated: Phase 2 (Bluetooth LE) prepared; Phase 1 hardware validation still
 | **T5** 30-minute continuous operation | Device-tested | **NOT RUN** |
 | **T6** 12-hour soak (extended reliability test) | Device-tested | **NOT RUN** |
 | **B1** to **B7** Bluetooth LE (Phase 2, [section 5](#5-phase-2-bluetooth-le-prepared-nothing-has-run-over-a-real-bluetooth-link)) | Device-tested | **NOT RUN** |
+| **P1** to **P8** Android test sender on a phone (Phase 3, section 6) | Device-tested | **NOT RUN** |
 
 ## 1. Host tests
 
@@ -35,7 +38,7 @@ Python 3.
 
 ```bash
 make test                            # layering check + 77 C++ tests (gcc, ASan + UBSan, -Werror)
-make test-tools                      # builds the simulators, then 76 Python tests
+make test-tools                      # builds the simulators, then 93 Python tests
 make -B test CXX=clang++ SANITIZE=   # second compiler, no sanitizers
 make render                          # screen images in out/ (needs Pillow for the contact sheets)
 make reference                       # regenerates docs/reference/ (images and expected outputs)
@@ -48,7 +51,8 @@ make golden-update                   # accept a deliberate rendering change (loo
 |---|---|
 | gcc 13.3, `-std=c++11 -Wall -Wextra -Wpedantic -Werror`, AddressSanitizer + UBSan: `make test` | **77 tests, 339,828 checks, 0 failed** |
 | clang 18.1, same warnings, no sanitizers: `make test` | **77 tests, 339,828 checks, 0 failed**; golden hashes identical to gcc |
-| gcc with sanitizers: `make test-tools` | **76 Python tests, OK** |
+| gcc with sanitizers: `make test-tools` | **93 Python tests, OK** |
+| JUnit 6.1.3, in `android/`: `./gradlew :protocol:test :link:test` | **106 + 32 Kotlin tests, OK** (section 6) |
 | Layering check (`check_layering.sh`) | ok |
 
 clang could not be run with sanitizers: this sandbox's clang has no AddressSanitizer
@@ -1170,3 +1174,250 @@ message) and B4.
 - **The Phase 1 and Phase 2 firmware duplicate about 100 lines of start-up code.** `main.cpp` was
   deliberately left untouched so the Phase 1 validation stays valid; once it passes, the two can be
   merged onto `src/device_common.h`.
+
+## 6. Phase 3: Android test sender (prepared; **it has never run on a phone**)
+
+Phase 3 adds an Android project in `android/` with a small test app. It finds a MotoNav over
+Bluetooth LE, connects, and sends the simulated navigation messages of section 5. It is **not**
+the navigation app: the Google Navigation SDK is Phase 4. How the project is built and laid out
+is in [android/README.md](android/README.md).
+
+Nothing in this section has run on a phone, and nothing has run against a MotoNav. The protocol
+and the connection logic are tested on a computer with a fake in place of Bluetooth. The part that
+talks to the phone's Bluetooth stack was only built.
+
+### 6.1 Status at a glance
+
+| Area | Label | Status |
+|---|---|---|
+| Protocol in Kotlin: codec, CRC, validation order, STATUS parser, road-name fitting, the simulated messages (106 tests) | Host-tested | pass |
+| The Kotlin codec against the shared files: all 45 vectors give the stated result, its encoder reproduces the 23 valid ones **byte for byte**, and its 17 simulated messages are identical to the Python tool's, byte for byte | Host-tested | pass |
+| Connection logic: set-up order, MTU rule, one write at a time, newest state wins, sequence per connection, resend after reconnecting, timeouts, every failure, plus 40 randomised runs of 2,000 events (32 tests) | Host-tested | pass |
+| The road name is never written to the system log, files, preferences or a database (a check on the sources) | Host-tested | pass |
+| The app builds: 0 compiler warnings, Android lint clean with warnings treated as errors, debug APK about 0.9 MB (the exact size varies with the build machine) | Compile-checked | pass |
+| The built APK declares the Bluetooth permissions Google's documentation prescribes (read back with `aapt2`) | Compile-checked | pass |
+| `BluetoothGatt` adapter, scanner, permission flow, screen: scanning, connecting, MTU, writes, notifications, reconnecting | Device-tested | **NOT RUN** |
+| **P1** install, **P2** permissions, **P3** find and connect, **P4** simulated states, **P5** play all, **P6** wrong messages, **P7** disconnect and failures, **P8** a second phone | Device-tested | **NOT RUN** |
+
+### 6.2 What the Kotlin tests cover (Host-tested)
+
+Run from `android/`: `./gradlew :protocol:test :link:test`. JUnit 6.1.3, no phone and no Android SDK needed.
+
+| Module | Tests |
+|---|---|
+| `:protocol` | the CRC check value `0x29B1`; every vector in `protocol/vectors.txt` decodes to the stated result and fields; the encoder reproduces every valid vector byte for byte; the worked example in BLUETOOTH_PROTOCOL.md; every mode, maneuver and exit survives a round trip; every single-bit flip is detected; every truncation and extension is rejected; the documented order of checks; 200,000 random buffers never crash the decoder; 100,000 frames with a correct CRC and one injected defect each get exactly the injected verdict, and every accepted frame re-encodes identically; the error codes, UUIDs, maneuver numbers and size limits equal the ones in BLUETOOTH_PROTOCOL.md and in the firmware's `frame.h` and `ble_link.cpp`; road names are cut between characters, never inside one; STATUS parsing |
+| `:link` | set-up in the documented order; an MTU of 56 is accepted and 55 or 23 ends the link with a clear reason and **nothing is ever written**; missing service; refused operations; sequence numbers from 0, wrapping after 255, restarting on a new connection; while a write is in flight only the newest update is kept; the newest state is sent again after (re)connecting; a refused or failed write; stopping cleanly; timeouts for every step; late or unexpected callbacks are ignored; and the random-event runs, which check that nothing is written unless the link is Ready, never two writes at once, and the sequence rises by one |
+
+Bugs were injected one at a time, each was detected, and the code was restored (and verified identical):
+
+| Injected bug | Failing tests |
+|---|---|
+| `:protocol` wrong CRC polynomial | 61 |
+| `:protocol` 32-bit numbers written big-endian | 24 |
+| `:protocol` length checked before version | 2 |
+| `:protocol` road name cut in the middle of a character | 1 |
+| `:protocol` one simulated message changed (450 m to 451 m) | 1 |
+| `:protocol` U-turn right numbered 7 instead of 8 | 5 |
+| `:link` any MTU accepted | 2 |
+| `:link` a write started while another is in flight | 3 |
+| `:link` sequence numbers not restarted on a new connection | 1 |
+| `:link` newest state not sent again after set-up | 1 |
+| `:link` an MTU change cancels the timeout of a write in flight | 1 |
+| `:link` writes allowed before the link is Ready | 3 |
+
+(One of these, the MTU change cancelling a write's timeout, was a real bug found by reading the
+code before the test existed; the test was written for it.) The source check for the road-name
+rule was also shown to fail when a `Log.d` call is added.
+
+### 6.3 Build and compile check (Compile-checked)
+
+| Item | Value |
+|---|---|
+| Android Gradle Plugin | 9.5.1 (supports API 37, which the Navigation SDK needs; Phase 4) |
+| Gradle | 9.6.0, wrapper pinned with its published SHA-256; the wrapper JAR matches Gradle's published checksum |
+| Kotlin | 2.2.10 (the version AGP 9.5.1 depends on) |
+| compileSdk, targetSdk, minSdk | 37, 37, 26 (Android 8.0 and later) |
+| Build Tools | 36.0.0 |
+| JDK | 21 here; 17 or newer needed |
+| Warnings | 0 compiler warnings (treated as errors), 0 lint findings (treated as errors) |
+
+The Android SDK licence had to be accepted to install the SDK in the cloud sandbox where this was built.
+
+What the compile check does **not** show: that the Bluetooth calls behave on a real phone. It
+shows that they exist in the API and are used with the right types.
+
+### 6.4 Before you run the phone tests
+
+You need: a MotoNav board running the `motonav_ble` firmware with the Phase 1 tests **T1 to T4**
+and the Phase 2 tests **B1 and B2** passed (so you already know the board advertises and accepts
+a connection from a known-good generic app); an Android phone with Bluetooth LE running Android 8
+or later; and a way to put the APK on the phone.
+
+Build and install (see android/README.md for the SDK setup):
+
+```bash
+cd android
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk       # phone with USB debugging; or copy the APK to the phone
+```
+
+Keep the board's serial monitor open (`pio device monitor | tee p.log` in `firmware/`): the board
+prints a line for every message it receives, and the pass criteria compare the app with those lines.
+Expected board output is the same as in section 5; sequence numbers differ because this app
+numbers its frames from 0 on every connection.
+
+### 6.5 The tests
+
+#### P1. Install and start
+
+Open the app. Expected: a screen titled "MotoNav test sender" with the state **Not connected**,
+a **Find and connect** button, and a log that is empty. Nothing happens by itself.
+
+Pass: it starts without crashing and rotates without losing the screen.
+
+| Date | Tester | Phone, Android version | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### P2. Permissions
+
+Tap **Find and connect**. Expected: Android asks for permission to find nearby devices (Android
+12 and later: "Nearby devices"; Android 11 and earlier: Location). After you allow it, scanning
+starts. If you refuse, the log says the permission was refused and nothing else happens.
+
+Pass: both behaviours. (Refuse once, then allow it from the system settings and try again.)
+
+| Date | Tester | Phone, Android version | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### P3. Find and connect
+
+With the board powered and advertising ("ble: advertising as MotoNav" on serial), tap **Find and
+connect**. Expected, in the app's log and state line, in this order: scanning; found a MotoNav
+(with a signal strength); then the state passes through **Connecting**, **Looking for the MotoNav
+service**, **Negotiating the message size**, **Turning on status messages** and ends at
+**Connected and ready (MTU n)** with `n` at least 56. Expected on the board: `ble: connected`,
+then `ble: MTU n` (the same `n`), and the display shows **BLUETOOTH CONNECTED / READY TO NAVIGATE**.
+
+Pass: all of that. **Write down the MTU.** The **Device status** line still says "(none yet)": the
+board sends a status value after each message it handles, and from reading the firmware its
+notification at connect time should go out before the app has turned notifications on (not observed). The first status appears in P4, for example
+`status(v1, last seq 0, last error None, accepted 1, rejected 0)`.
+
+If no MotoNav is found: check the board (serial), that the phone's Bluetooth and permission are on, and that you are within a metre or two. If it ends at **FAILED**, the text says why (for example MtuTooSmall); send it along with the board log.
+
+| Date | Tester | Phone, Android version | MTU granted | Result | Notes |
+|---|---|---|---|---|---|
+| | | | | **NOT RUN** | |
+
+#### P4. Simulated states
+
+Choose each entry in the **Send a simulated state** list and tap **Send this state**. After
+each, the board prints `ble: accepted seq N -> expect: ...` with the text below (`N` rises by
+one for each message sent, starting at 0 on every connection), the display shows what that text
+says, and the app logs `device acknowledged frame N`. The Device status line shows the accepted
+count rising. (The icons and layouts match the T4 reference sheets in `docs/reference/`.)
+
+| Entry | What it is | The board must print (after `-> expect: `) |
+|---|---|---|
+| `ready` | connected, no navigation (READY screen) | `screen=Ready` |
+| `straight_1500` | CONTINUE, 1.5 km, Main Street | `screen=Navigating icon=Straight distance="1.5 km" road="Main Street"` |
+| `turn_left_450` | TURN LEFT, 450 m, MG Road | `screen=Navigating icon=TurnLeft distance="450 m" road="MG Road"` |
+| `turn_right_90` | TURN RIGHT, 90 m, MG Road | `screen=Navigating icon=TurnRight distance="90 m" road="MG Road"` |
+| `slight_left_300` | SLIGHT LEFT, 300 m | `screen=Navigating icon=SlightLeft distance="300 m" road="Outer Ring Road"` |
+| `sharp_right_120` | SHARP RIGHT, 120 m (the display rounds to 100 m) | `screen=Navigating icon=SharpRight distance="100 m" road="National Highway 66"` |
+| `uturn_left_50` | U-TURN (left), 50 m | `screen=Navigating icon=UTurnLeft distance="50 m" road="Pacific Coast Highway"` |
+| `roundabout_exit2_200` | ROUNDABOUT exit 2, 200 m | `screen=Navigating icon=Roundabout exit=2 distance="200 m" road="Station Road"` |
+| `long_road_name` | road name cut to fit: 'Sir Mokshagundam V...' | `screen=Navigating icon=Straight distance="800 m" road="Sir Mokshagundam Visvesvaraya R"` |
+| `rerouting` | REROUTING screen | `screen=Rerouting` |
+| `arrived` | DESTINATION REACHED screen | `screen=Arrived` |
+| `stopped` | navigation stopped: back to READY | `screen=Ready` |
+
+Pass: all 12 accepted, the display matches each line, no `rejected` count, no reset.
+
+If the app is tapped faster than the device acknowledges, the older state is dropped on purpose
+(only the newest matters), so a count of frames can be lower than the number of taps.
+
+| Date | Tester | Phone, Android version | States shown correctly (of 12) | Result | Notes |
+|---|---|---|---|---|---|
+| | | | | **NOT RUN** | |
+
+#### P5. Play all
+
+Tap **Play all, one a second**. Expected: the twelve states are sent one a second, over and over,
+and the display changes with them, about the rate Google's turn-by-turn feed will have. Let it
+run for **two minutes**, then tap **Stop playing**.
+
+Pass: the display follows without freezing or flicker; the board does not reset; the Device status
+`rejected` count stays at 0; the app stays connected.
+
+| Date | Tester | Phone, Android version | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### P6. Wrong messages are rejected
+
+The app can send deliberately wrong messages. After P4, choose each entry in **Wrong messages**
+and tap **Send this wrong message**. The display must keep showing what it showed; the board must
+not reset.
+
+| Entry | The board must print | Last-error byte in the status |
+|---|---|---|
+| `BAD_crc` | `ble: rejected BadCrc (33 bytes)` | `04` |
+| `BAD_version` | `ble: rejected BadVersion (22 bytes)` | `02` |
+| `BAD_truncated` | `ble: rejected BadLength (30 bytes)` | `03` |
+| `BAD_maneuver` | `ble: rejected BadPayload (22 bytes)` | `06` |
+| `BAD_garbage` | `ble: rejected BadVersion (9 bytes)` | `02` |
+
+Pass: each is rejected with the stated reason, the display does not change, the Device status
+`rejected` count rises by one each time, and a normal state sent afterwards is accepted.
+
+| Date | Tester | Phone, Android version | Rejected correctly (of 5) | Result | Notes |
+|---|---|---|---|---|---|
+| | | | | **NOT RUN** | |
+
+#### P7. Disconnecting and failures
+
+1. Tap **Disconnect**. Expected: the app shows **Disconnected**; the board prints `ble: disconnected (reason n)` and shows **BLUETOOTH DISCONNECTED**.
+2. Tap **Find and connect** again. Expected: it connects as in P3, and the first state you send is accepted with `seq 0` (sequence numbers restart), even though the previous connection went higher.
+3. While connected, switch the phone's Bluetooth off. Expected: the app shows **FAILED: ConnectionLost** with a reason; the board shows the disconnected screen.
+4. Switch Bluetooth on, tap **Find and connect**. Expected: it connects again.
+5. While connected, power the board off. Expected: after a few seconds the app shows **FAILED: ConnectionLost**. (The time depends on the phone.)
+6. Tap **Find and connect** with the board switched off. Expected: after about 15 seconds the log says no MotoNav was found.
+
+Pass: every step happens as stated, and the app never freezes or crashes.
+
+| Date | Tester | Phone, Android version | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### P8. A second phone
+
+Repeat P3 to P7 on a phone from a different maker, ideally with a different Android version.
+Bluetooth behaviour differs between makers (message size, timing, background limits), and one
+phone proves little.
+
+| Date | Tester | Phone maker and model, Android version | MTU granted | Result | Notes |
+|---|---|---|---|---|---|
+| | | | | **NOT RUN** | |
+
+**Evidence to send for the phone tests:** `p.log` (the board's serial log); screenshots of the app
+(after P3, P4, P6 and after a failure in P7); photos of the display for P4 (at least the first, a
+middle and the last state); the phone's maker, model and Android version.
+
+### 6.6 Known limitations of Phase 3
+
+- **The phone side has never run.** Scanning, the permission flow, connecting, MTU negotiation, writes,
+  notifications and the screen are untested. The logic they feed is tested; their behaviour on a
+  real Bluetooth stack is unknown.
+- **No reconnection.** If the connection drops, the app reports it and stops. Automatic
+  reconnection, keeping the link alive with the screen off (a foreground service), and Android's
+  background limits are Phase 5.
+- **The connection belongs to the screen.** Closing the app ends it.
+- **It connects to the first MotoNav it finds.** With two boards in range it may pick either.
+- **The deprecated `connectGatt` call is used** (see DECISIONS.md D-49).
+- **Placeholder application id and icon** (`com.motonav.app`): to be decided before a release (D-45).
+- **English only**, and the screen is a test tool, not a product UI.
+- **There is no Google Navigation SDK** and no real navigation data. The messages are simulated.
+- **No security** on the link: see BLUETOOTH_PROTOCOL.md section 11.

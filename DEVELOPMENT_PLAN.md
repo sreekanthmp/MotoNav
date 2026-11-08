@@ -1,7 +1,7 @@
 # Development Plan
 
 Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
-**Planned**, **Blocked**. Last updated after Phase 2 (Bluetooth) was prepared (2026-11-08).
+**Planned**, **Blocked**. Last updated after Phase 3 (Android test sender) was prepared (2026-11-08).
 
 Rule: each phase ends at a review. The next phase does not start until the
 project owner approves.
@@ -13,7 +13,7 @@ project owner approves.
 | 0 — Discovery and planning | Implemented (documents only) | Approved. |
 | 1 — ESP32 display prototype | Implemented and host-tested. **Not device-tested.** | Approved by the project owner, including the hardware diagnostics and the validation procedure. **Physical hardware validation (T1-T6) is the current stage and has not been run.** See [Phase 1 results](#phase-1-results). The hardware is identified only provisionally (from product listings) and no validation has been run, so nothing has run on hardware. |
 | 2 — Bluetooth communication (firmware side) | Protocol, codec and receiver **implemented and host-tested**. Radio code **compile-checked only**. **Not device-tested: nothing has run over a real Bluetooth link.** | Prepared at the owner's request ("we can test this in real hardware, but not now") while the Phase 1 hardware validation is pending. Separate environment `motonav_ble`; Phase 1 `motonav` unchanged. Messages are simulated (sent by hand from a generic BLE app); no Google SDK. See [Phase 2](#phase-2--bluetooth-le-link-firmware-side). **Awaiting review.** The device tests B1-B7 should wait until T1-T4 have passed. |
-| 3 — Android app foundation | Planned | **Not started.** Must pass the shared vectors in `protocol/vectors.txt`. |
+| 3 — Android app foundation (test sender) | Protocol code and connection logic **implemented and host-tested**. The Android app is **compile-checked only**. **Not device-tested: it has never run on a phone, and never against a MotoNav.** | Prepared at the owner's request while the hardware validation is pending. Sends the Phase 2 simulated messages; not the navigation app and no Google SDK. See [Phase 3](#phase-3--android-test-sender). **Awaiting review.** The phone tests P1-P8 should wait until B1 and B2 have passed. |
 | 4 — Google Navigation SDK | Planned | Commercial-terms questions open. |
 | 5 — Navigation reliability | Planned | |
 | 6 — Production hardware investigation | Planned | Not started on purpose. |
@@ -114,11 +114,12 @@ and before any manufacturing commitment.
     (with `esp32-libs@3.3.12`), Adafruit GFX 1.13.0, Adafruit SSD1306 2.5.17,
     Adafruit BusIO 1.17.4. Phase 2 checked that NimBLE-Arduino 2.5.2 builds with this
     framework version (it does; pinned in `platformio.ini`). It has not run.
-16. **Android toolchain.** SDK 8.x needs Android Gradle Plugin 9.0.1, Gradle
-    9.1.0 and `targetSdk` 37 (Verified in the release notes). The cloud
-    environment has Gradle 8.14.3 and JDK 21 and no Android SDK, so builds and
-    tests of the Android app there depend on network access that is not yet
-    granted. Phase 3 concern.
+16. **Android toolchain.** Navigation SDK 8.x needs Android Gradle Plugin 9.0.1 or newer,
+    Gradle 9.1.0 and `targetSdk` 37 (Verified in the release notes). Resolved in Phase 3:
+    the project uses AGP 9.5.1 (supports API 37; AGP 9.0 stops at API 36.1), Gradle 9.6.0,
+    Kotlin 2.2.10, compileSdk and targetSdk 37, and builds. Building it in the cloud sandbox
+    needed `dl.google.com` to be allowed and the Android SDK licence to be accepted there.
+    Phase 4 must still check that Navigation SDK 8.1.0 builds with these versions.
 
 17. **Road names in non-Latin scripts cannot be shown** (found in Phase 1). The
     built-in 5x7 font is ASCII only, so such names become `?` or are hidden. Google
@@ -148,6 +149,25 @@ and before any manufacturing commitment.
     Deliberate, to keep the Phase 1 validation valid (D-32). Merge after Phase 1 passes.
 25. **No stale-data detection.** If the phone stops sending, the display keeps the last
     state. Belongs to Phase 5 (heartbeat and timeout).
+
+### F. Android (found in Phase 3)
+
+26. **The Android app has never run on a phone.** Scanning, permissions, connecting, MTU
+    negotiation, writes, notifications and the screen are untested (tests P1 to P8). The
+    logic they feed is tested.
+27. **`connectGatt` is deprecated in the API 37 SDK** in favour of a call that exists only on the
+    newest Android (D-49). It works across Android 8 and later today; revisit when the newest
+    Android is common.
+28. **The connection lives and dies with the test screen.** Closing the app ends it. Keeping the
+    link alive with the screen off or the app in the background needs a different design, and
+    Android's background-Bluetooth rules vary by version and maker. Not yet researched; Phase 5.
+29. **`minSdk` 26, `applicationId` and the icon are placeholders** (D-44, D-45).
+30. **One phone proves little.** Android Bluetooth behaviour (MTU, timing, permissions) differs by
+    maker. P8 asks for a second phone; a real compatibility matrix is Phase 5.
+31. **The build environment was set up in a sandbox** that needed an extra network host and an
+    accepted SDK licence. A fresh developer machine needs JDK 17 or newer and the Android SDK
+    (platform 37.0, build-tools 36.0.0); the first build downloads about 140 MB of Gradle and
+    plugins.
 
 ## Phase 1 — ESP32 display prototype
 
@@ -280,7 +300,7 @@ environment `motonav_ble` (D-32).
 - `firmware/src/ble_link.*` and `main_ble.cpp`: NimBLE glue and the Phase 2 firmware.
 - `protocol/frame_tool.py` and `protocol/vectors.txt`: an independent Python implementation, and
   45 shared test vectors (D-39).
-- Host tests: 24 new C++ tests (77 in total), including fuzzing; new Python tests (76 in total).
+- Host tests: 24 new C++ tests (77 in total), including fuzzing; new Python tests (93 in total after Phase 3).
 - [TESTING.md](TESTING.md) section 5: ready-to-send test messages with the predicted serial
   output and STATUS bytes, and the device tests B1 to B7.
 
@@ -307,9 +327,46 @@ Everything that can be proven without a radio is done.
 
 Phase 2 stops here. Phase 3 (Android) starts only after review.
 
+## Phase 3 — Android test sender
+
+**Goal:** an Android app that finds a MotoNav over Bluetooth LE, connects, negotiates the message
+size and sends the simulated navigation messages from Phase 2, so that the complete chain
+phone, Bluetooth, ESP32, display can be tested before any Google SDK work.
+
+**How it was done.** Prepared at the owner's request while the hardware validation is pending.
+No phone and no MotoNav were available, so the work was arranged so that as much as possible can
+be proven on a computer: everything that decides what to do is pure Kotlin behind a small
+interface, tested with a fake. The Android-specific part is thin, and was built and linted but
+not run (D-42).
+
+**Delivered:** the `android/` Gradle project ([android/README.md](android/README.md)) with
+`:protocol` (the Kotlin implementation of BLUETOOTH_PROTOCOL.md, checked against the shared
+vectors and against the Python tool's messages), `:link` (the connection state machine) and
+`:app` (BluetoothGatt adapter, scanner and one test screen); `protocol/scenarios.txt`; source
+checks for the road-name rule and for dependencies; and [TESTING.md](TESTING.md) section 6 with
+the phone tests P1 to P8 and the board output each should produce.
+
+### Phase 3 acceptance criteria and results
+
+| # | Criterion | Verified by | Result |
+|---|---|---|---|
+| 1 | The Kotlin protocol code decodes all shared vectors as stated and reproduces the valid ones byte for byte | Host | **Pass** (106 tests) |
+| 2 | Its simulated messages are identical to the Python tool's | Host | **Pass** |
+| 3 | The connection logic sets up in the documented order, refuses an MTU below 56, never writes before Ready or two at once, numbers frames per connection, keeps only the newest update, resends after reconnecting, times out, and reports every failure | Host, with a fake Bluetooth | **Pass** (32 tests incl. 40 randomised runs) |
+| 4 | Road names are never logged or stored | Host (source checks) | **Pass** |
+| 5 | The app builds with no compiler warnings and no lint findings; the packaged manifest has the documented permissions | Compile | **Pass** |
+| 6 | The app starts, asks for permission, finds a MotoNav, connects and reaches Ready with an MTU of at least 56 | Device | **NOT RUN** (P1 to P3) |
+| 7 | Each simulated state appears on the display as the board's `expect:` line says; wrong messages are rejected | Device | **NOT RUN** (P4 to P6) |
+| 8 | Disconnecting, reconnecting and connection loss behave as specified; a second phone behaves the same | Device | **NOT RUN** (P7, P8) |
+
+**Phase 3 cannot be called complete until P1 to P8 are run on a real phone against a real board.**
+
+Phase 3 stops here. Phase 4 (Google Navigation SDK) starts only after review.
+
 ## Later phases (summary, not yet planned in detail)
-- **Phase 3:** Kotlin app with scan, connect, request the MTU, persist the paired device,
-  send test navigation messages. Must pass `protocol/vectors.txt`.
+- **Phase 3 (prepared, see above):** Kotlin test sender: scan, connect, request the MTU, send
+  simulated navigation messages. Passes `protocol/vectors.txt`. Remembering the paired device
+  was left out: it belongs with reconnection in Phase 5.
 - **Phase 4:** Navigation SDK integration, starting with the headless/background
   spike (risk 6).
 - **Phase 5:** reliability: reconnection, stale-data detection, interruption

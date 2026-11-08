@@ -105,6 +105,53 @@ class Phase2Documents(unittest.TestCase):
         self.assertIn("never run over a real Bluetooth link", " ".join(self.PROTO.split()))
 
 
+class Phase3Documents(unittest.TestCase):
+    """Section 6 of TESTING.md: the Android test sender. Nothing in it has run on a phone."""
+
+    def section6(self):
+        return DOC[DOC.index("## 6. Phase 3"):]
+
+    def scenario_replay(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("frame_tool", REPO / "protocol" / "frame_tool.py")
+        tool = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tool)
+        valid, invalid = tool.scenarios(0)          # the app numbers its frames from 0
+        frames = [f for _, _, f in valid + invalid]
+        stdin = "\n".join(tool.hexs(f, spaced=False) for f in frames) + "\n"
+        out = helpers.run_binary("ble_script", "--status", input_text=stdin).stdout.splitlines()
+        self.assertEqual(len(out), 2 * len(frames))
+        return valid, invalid, [(out[2 * i], out[2 * i + 1].strip()) for i in range(len(frames))]
+
+    def test_p4_lists_what_the_real_receiver_says_for_each_simulated_state(self):
+        valid, _, replay = self.scenario_replay()
+        for (name, _, _), (serial, _) in zip(valid, replay):
+            expect = serial.split("-> expect: ")[1]
+            self.assertIn("| `%s` |" % name, self.section6())
+            self.assertIn("`%s` |" % expect, self.section6(), name)
+
+    def test_p6_lists_what_the_real_receiver_says_for_each_wrong_message(self):
+        valid, invalid, replay = self.scenario_replay()
+        for (name, _, _), (serial, status) in zip(invalid, replay[len(valid):]):
+            code = status.split()[3]
+            self.assertIn("| `%s` | `%s` | `%s` |" % (name, serial, code), self.section6(), name)
+
+    def test_every_phone_test_is_not_run(self):
+        section = self.section6()
+        self.assertGreaterEqual(section.count("**NOT RUN**"), 2 + 8)     # two status-table rows + one result row per P test
+        self.assertNotRegex(section, r"\*\*(PASS|PASSED|FAIL|FAILED)\*\*\s*\|\s*\n")
+        row = [l for l in section.splitlines() if l.startswith("| **P1**")]
+        self.assertEqual(len(row), 1)
+        self.assertIn("NOT RUN", row[0])
+        for p in ("P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8"):
+            self.assertIn("#### %s." % p, section)
+
+    def test_section_6_says_it_has_never_run_on_a_phone(self):
+        self.assertIn("never run on a phone", " ".join(self.section6().split()))
+        readme = (REPO / "android" / "README.md").read_text()
+        self.assertIn("never run on a phone", " ".join(readme.split()))
+
+
 class NoHardwareTestIsMarkedPassedWithoutEvidence(unittest.TestCase):
     def hardware_section(self):
         return DOC[DOC.index("## 3. Physical hardware validation"):DOC.index("## 4. Known limitations")]
