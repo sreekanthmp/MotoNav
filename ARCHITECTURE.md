@@ -1,6 +1,8 @@
 # Architecture
 
-**Status: Proposed. Nothing described here is implemented yet.** Facts marked
+**Status after Phase 1:** the firmware layers in sections 3 and 4 (model,
+rendering, simulation) are **Implemented and host-tested**. Section 1's phone,
+BLE and Google-SDK parts are still **Proposed** (Phases 2-4). Facts marked
 **Verified** were read directly from Google's documentation on 2026-11-08 (the
 pages were last updated 2026-11-03). Everything else is a proposal or an
 assumption.
@@ -122,20 +124,59 @@ Notes:
 - Google Play requires a Location Purpose Declaration (select "Navigation")
   for apps built on 8.0.0 or later.
 
-## 3. Proposed `NavSnapshot` (transport-independent)
+## 3. `NavSnapshot` (transport-independent)
 
-| Field | Type | Source |
-|---|---|---|
-| `state` | enum: `READY`, `NAVIGATING`, `REROUTING`, `ARRIVED` | `NavState` plus arrival |
-| `maneuver` | enum, MotoNav set below | `StepInfo.getManeuver()` mapped |
-| `distanceToManeuverM` | uint, or "unknown" | `getDistanceToCurrentStepMeters()` |
-| `roadName` | string, bounded length | `getSimpleRoadName()` or `getFullRoadName()` |
-| `remainingDistanceM` | uint | `getDistanceToFinalDestinationMeters()` |
-| `remainingSeconds` or ETA minute-of-day | uint | phone-computed |
-| `roundaboutExit` | uint, 0 if none | `getRoundaboutTurnNumber()` |
+**Status: Implemented and host-tested for the fields marked "Phase 1".** The
+code is `firmware/lib/motonav/src/core/nav_model.h`.
 
-`DISCONNECTED` is **not** a snapshot field. It is a firmware condition derived
-from the BLE link state.
+| Field | Type | Google source | Status |
+|---|---|---|---|
+| `mode` | `Ready`, `Navigating`, `Rerouting`, `Arrived` | `NavState` plus arrival | Phase 1 |
+| `maneuver` | 11-value enum, mapping below | `StepInfo.getManeuver()` mapped | Phase 1 |
+| `distanceToManeuverM` | uint32, or "unknown" | `getDistanceToCurrentStepMeters()` | Phase 1 |
+| `roundaboutExit` | uint8, 0 = unknown | `getRoundaboutTurnNumber()` | Phase 1 |
+| `roadName` | up to 31 bytes, RAM only | `getSimpleRoadName()` or `getFullRoadName()` | Phase 1 |
+| `remainingDistanceM` | uint32 | `getDistanceToFinalDestinationMeters()` | Planned, Phase 2 (with the protocol) |
+| remaining time or ETA | uint32 | phone-computed | Planned, Phase 2 |
+
+`DeviceState` = `Link` (`Disconnected` / `Connected`) + `NavSnapshot`.
+`Disconnected` is **not** a snapshot field. It is a firmware condition derived
+from the BLE link state, and it takes priority over any stale navigation data.
+
+The display does not currently show remaining distance or ETA (the display
+requirements do not list them), so they are added with the protocol in Phase 2
+rather than carried unused now.
+
+### Code layers (Implemented)
+
+```
+core/   NavSnapshot, DeviceState, distance formatting     no display, no BLE, no Arduino
+sim/    scripted navigation data + serial test commands   core only
+ui/     ScreenView, screens, icons, Presenter, Canvas     core + Canvas interface only
+src/    main.cpp, SSD1306 Canvas adapter, pin config      the only code that touches hardware
+```
+
+`firmware/host/check_layering.sh` fails the build if `core/`, `sim/` or `ui/`
+include Arduino, Wire, a display driver or a radio header, or if `core/`
+includes `ui/` or `sim/`. It was checked by deliberately breaking the rule.
+
+### Rendering path (Implemented)
+
+```
+DeviceState --buildView--> ScreenView --renderScreen--> Canvas --present--> panel
+                (what is visible)     (draw functions)   (interface)   (hardware)
+```
+
+- `ScreenView` holds only what is visible: which screen, the already rounded
+  distance text, a cleaned road name. Two states that look identical give equal
+  views, so `Presenter` redraws and pushes a frame only when the view changes.
+- `Canvas` is a small interface (clear, fillRect, fillTriangle, fillCircle,
+  drawText, present). `Ssd1306Canvas` implements it with Adafruit GFX on the
+  device, and a bitmap implements it in the host tests. A circular AMOLED will
+  be another implementation of the same interface.
+- Layout is computed from `canvas.width()` and `canvas.height()`. Two shapes are
+  implemented: height at least 48 (verified at 128x64) and a compact one
+  (verified at 128x32). A circular display needs its own layouts.
 
 ### Proposed maneuver mapping (SDK -> MotoNav display set)
 
@@ -151,36 +192,59 @@ a many-to-one mapping is needed.
 | `SLIGHT_RIGHT` | `TURN_SLIGHT_RIGHT`, `TURN_KEEP_RIGHT`, `FORK_RIGHT`, `*_RAMP_SLIGHT_RIGHT`, `*_RAMP_KEEP_RIGHT` |
 | `SHARP_LEFT` | `TURN_SHARP_LEFT`, `*_RAMP_SHARP_LEFT` |
 | `SHARP_RIGHT` | `TURN_SHARP_RIGHT`, `*_RAMP_SHARP_RIGHT` |
-| `U_TURN` | `TURN_U_TURN_*`, `*_RAMP_U_TURN_*` |
+| `UTurnLeft` / `UTurnRight` | `TURN_U_TURN_COUNTERCLOCKWISE` / `_CLOCKWISE` and the `*_RAMP_U_TURN_*` ones. See the note below on which side each one is. |
 | `ROUNDABOUT` | all 20 `ROUNDABOUT_*` constants (values 43-62) |
 | `ARRIVED` | `DESTINATION`, `DESTINATION_LEFT`, `DESTINATION_RIGHT` |
 | `REROUTING` | not a maneuver: comes from `NavState.REROUTING` |
 
-Gaps to decide before the protocol is frozen (Phase 2):
+Gaps found in Phase 0, and how Phase 1 handled them in the **internal model**
+(the wire encoding is still a Phase 2 decision):
 
-1. `ROUNDABOUT` should probably carry the **exit number**. A roundabout with
-   no exit number is much less useful.
-2. `U_TURN` needs a side (left or right). Either two values or a flag.
-3. Whether "keep left/right" and "fork" are acceptable as slight turns on the
-   display, or deserve their own arrows.
+1. `Roundabout` carries the **exit number** (`roundaboutExit`), drawn inside the
+   roundabout icon. **Implemented, host-tested.**
+2. U-turns have a side: the model has `UTurnLeft` and `UTurnRight` instead of the
+   single `U_TURN` in the original brief. In left-hand traffic the same road
+   situation is mirrored, so one icon would be wrong in one of the two cases.
+   **This deviates from the brief's maneuver list and needs your approval.**
+   Which Google constant maps to left versus right in each driving side must be
+   verified on a real route in Phase 4. Google's own text on this is
+   inconsistent (see the notes above).
+3. "Keep left/right" and "fork" are shown as the slight-turn arrows. There are
+   no separate icons for them. **A design choice, open to change.**
 
-## 4. Proposed repository structure
+Not mapped to dedicated icons: merges, ferries, name changes and `UNKNOWN` all
+show the straight arrow.
+
+## 4. Repository structure
+
+**Implemented (Phase 1):**
 
 ```
 MotoNav/
-├── README.md  ARCHITECTURE.md  HARDWARE.md  DEVELOPMENT_PLAN.md  DECISIONS.md
-├── firmware/                    PlatformIO project (Phase 1)
-│   ├── platformio.ini           env for the board + a native (host) env for tests
-│   ├── src/
-│   │   ├── main.cpp             wiring only: init, loop
-│   │   ├── nav_model.h          NavSnapshot, enums. No display or BLE includes.
-│   │   ├── distance_format.*    pure logic, unit tested
-│   │   ├── sim_source.*         Phase 1 simulated navigation data
-│   │   ├── ui/                  screens, icon drawing, display setup
-│   │   └── ble/                 Phase 2
-│   └── test/                    host-side unit and rendering tests
-├── android/                     Phase 3 and later
-└── protocol/                    Phase 2: message layout test vectors shared by both sides
+├── README.md  ARCHITECTURE.md  HARDWARE.md  DEVELOPMENT_PLAN.md  DECISIONS.md  TESTING.md
+└── firmware/
+    ├── platformio.ini            no default env; compile-check env + template for the real board
+    ├── src/                      device-only code (the only code that touches hardware)
+    │   ├── main.cpp              setup, loop, I2C scan, display init/retry, serial commands, stats
+    │   ├── ssd1306_canvas.h      Canvas adapter over Adafruit GFX + SSD1306
+    │   └── display_config.h      required build flags; no default pins or addresses
+    ├── lib/motonav/src/          hardware-independent code, built for the device AND the host
+    │   ├── core/                 nav_model, distance_format
+    │   ├── sim/                  scripted simulation + serial command controller
+    │   └── ui/                   canvas, view, icons, screens, presenter, text
+    └── host/                     host-side tests and rendering (no PlatformIO, no hardware)
+        ├── Makefile  check_layering.sh  montage.py  render_screens.cpp
+        ├── bitmap_canvas.h  font5x7.h  test_framework.h
+        ├── tests/                34 tests
+        └── golden/screens.txt    regression hashes of every screen at 128x64 and 128x32
+```
+
+**Planned (not started):**
+
+```
+├── firmware/lib/motonav/src/ble/   Phase 2
+├── android/                        Phase 3 and later
+└── protocol/                       Phase 2: message-layout test vectors shared by both sides
 ```
 
 `protocol/` holds known-good encoded messages (hex) that both the firmware

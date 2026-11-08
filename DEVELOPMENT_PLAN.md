@@ -10,8 +10,8 @@ project owner approves.
 
 | Phase | Status | Notes |
 |---|---|---|
-| 0 — Discovery and planning | Implemented (documents only) | Awaiting review. |
-| 1 — ESP32 display prototype | Planned | Blocked on two inputs, see [Phase 1](#phase-1--esp32-display-prototype). |
+| 0 — Discovery and planning | Implemented (documents only) | Approved. |
+| 1 — ESP32 display prototype | Implemented and host-tested. **Not device-tested.** | Awaiting your review. See [Phase 1 results](#phase-1-results). The board and display are still unidentified, so nothing has run on hardware. |
 | 2 — Bluetooth communication | Planned | |
 | 3 — Android app foundation | Planned | |
 | 4 — Google Navigation SDK | Planned | Commercial-terms questions open. |
@@ -90,39 +90,60 @@ and before any manufacturing commitment.
 
 ### C. Hardware and display
 
-11. **Board and display not identified** (blocks Phase 1).
-12. **"SSD1306" may actually be SH1106** (common on 1.3 inch modules).
+11. **Board and display not identified.** Still unanswered after Phase 0. The
+    firmware is written not to depend on them, but nothing can be **device-tested**
+    (criteria 2, 4, 5-device, 6-device, 7) until they are known and the board is flashed.
+12. **"SSD1306" may actually be SH1106** (common on 1.3 inch modules). Phase 1 only
+    drives an SSD1306. The symptom of a mismatch is a shifted image.
 13. **Readability.** A small monochrome OLED is hard to read in direct sunlight,
     and static content can cause burn-in over long periods. This affects the
     prototype demo only. The production display is a separate decision.
-
-### D. Tooling
-
 14. **Hardware testing cannot be done by the AI assistant.** It has no access to
     the board. Anything that depends on the physical display, flicker, BLE
     radio behaviour or long-run stability must be tested by the owner, and
     results recorded honestly in `TESTING.md` as device-tested vs host-tested.
-15. **ESP32 Arduino core and PlatformIO platform versions** change quickly. The
-    exact versions are verified and pinned at the start of Phase 1, not
-    assumed from memory.
+15. **ESP32 Arduino core and PlatformIO platform versions** change quickly.
+    Pinned in Phase 1 to what the compile check resolved on 2026-11-08: platform
+    `espressif32@8.0.0`, package `framework-arduinoespressif32@4.30312.261024`
+    (with `esp32-libs@3.3.12`), Adafruit GFX 1.13.0, Adafruit SSD1306 2.5.17,
+    Adafruit BusIO 1.17.4. Phase 2 must check that the chosen BLE library works
+    with this framework version before relying on it.
 16. **Android toolchain.** SDK 8.x needs Android Gradle Plugin 9.0.1, Gradle
     9.1.0 and `targetSdk` 37 (Verified in the release notes). The cloud
     environment has Gradle 8.14.3 and JDK 21 and no Android SDK, so builds and
     tests of the Android app there depend on network access that is not yet
     granted. Phase 3 concern.
 
+17. **Road names in non-Latin scripts cannot be shown** (found in Phase 1). The
+    built-in 5x7 font is ASCII only, so such names become `?` or are hidden. Google
+    returns localised road names, so for a rider in India this will be common. This is a
+    font and display decision for Phase 6, but it should be known before choosing the
+    production display.
+18. **A display unplugged while running is not detected.** The Adafruit driver does not
+    report I2C write errors. Not a Phase 1 requirement; relevant to Phase 5.
+
+### D. Tooling
+
 ## Phase 1 — ESP32 display prototype
 
 **Goal:** the ESP32 renders every MotoNav screen on the SSD1306 from simulated
 data. No Bluetooth, no Android.
 
-### Inputs needed from the project owner (blocking)
+### Inputs needed from the project owner
+
+**Still outstanding.** They did not block writing the code, because the firmware
+takes every hardware value from the build and assumes nothing. They block all
+**device** testing.
 
 1. Exact ESP32 board and chip (commands in [HARDWARE.md](HARDWARE.md)).
 2. Display: resolution (128x64 or 128x32), interface (I2C 4-pin or SPI 7-pin),
    and if possible the I2C address and how it is wired.
 
 ### Approach
+
+*This is the plan as approved at the end of Phase 0. What was actually built, and
+where it differs, is in [Phase 1 results](#phase-1-results) and
+[Deviations](#deviations-from-the-approved-plan) below.*
 
 1. **Scaffold** `firmware/` as a PlatformIO project for the identified board,
    plus a `native` environment that runs logic and rendering tests on a normal
@@ -183,6 +204,37 @@ be verified on the physical board by the owner.
 | 8 | `TESTING.md` records what was run, on what, with actual results, marking each result Host or Device | — |
 
 Phase 1 stops there. Phase 2 starts only after review.
+
+### Phase 1 results
+
+Details and procedures are in [TESTING.md](TESTING.md). "Host" = automated tests and
+rendered images on a normal computer. "Device" = the real board, **not done**.
+
+| # | Criterion | Host result | Device result |
+|---|---|---|---|
+| 1 | Firmware builds for the target board | **Compile-checked** (not run) for generic classic ESP32, ESP32-S3 and ESP32-C3 targets with the placeholder pins, 0 warnings. The real board is still unidentified, so this is not yet a build for "the target board". | n/a |
+| 2 | Display initialises reliably; failed init recovers | Logic written (probe, retry every 2 s, no reboot loop). **Not host-testable.** | **Not run.** Needs the board (D1, D2). |
+| 3 | All five screens render as specified | **Pass**: every screen at 128x64 and 128x32, bounds-checked, images reviewed | **Not run** (D3) |
+| 4 | All 10 arrows recognisable | Images reviewed by the AI assistant and judged recognisable after two fixes. All 11 icons pairwise different, left/right mirrored. This is a judgement on a bitmap, not on the panel. | **Not run** (D4) |
+| 5 | Distance is the largest text; formatting rules unit-tested at the boundaries | **Pass**: 33 boundary cases, plus a property check over 0-30,000 m | **Not run** (D5) |
+| 6 | Flushes only on change | **Pass**: 604 frames for 1,720 ticks over two script loops, equal to the independently counted number of visible changes | **Not run** (D6) |
+| 7 | 12-hour soak, no reset, stable heap | Statistics line implemented (uptime, free heap, minimum heap, frames). **Not host-testable.** | **Not run** (D7) |
+| 8 | `TESTING.md` records results, marking Host vs Device | **Done** | — |
+
+**Phase 1 cannot be called complete until D1-D7 are run on the real board.** What is
+done is everything that can be proven without hardware.
+
+### Deviations from the approved plan
+
+1. **U-turns have a side** (`UTurnLeft`, `UTurnRight`) in the internal model instead of
+   the brief's single `U_TURN`. Needs your approval (D-17 in [DECISIONS.md](DECISIONS.md)).
+2. **Remaining distance and ETA are not in the model yet.** They are added with the
+   protocol in Phase 2.
+3. **Screens draw through a small `Canvas` interface** rather than calling Adafruit
+   GFX directly (refines D-08). This is what makes the host tests and the later
+   AMOLED swap possible.
+4. **The host test harness is a plain Makefile**, not PlatformIO's native test
+   environment (D-18).
 
 ## Later phases (summary, not yet planned in detail)
 

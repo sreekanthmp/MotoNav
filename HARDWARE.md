@@ -49,10 +49,47 @@ module can (the text printed on it, for example `ESP32-WROOM-32E` or
   noise at the edge. This is a known, common problem and is checked in Phase 1.
 - An I2C scan sketch reports the address, normally `0x3C`, sometimes `0x3D`.
 
-## Prototype wiring (Assumption)
+## Configuring the firmware (Implemented; not yet used on real hardware)
 
-**Valid only for a 4-pin I2C display on a classic ESP32 DevKit.** To be
-confirmed or corrected once the board and display are identified.
+The firmware contains **no default pin numbers, I2C address or display size**.
+`firmware/src/display_config.h` stops the build with an error until
+`platformio.ini` supplies all five values for your environment:
+
+```ini
+[env:myboard]
+platform = espressif32
+board = <PlatformIO board id for your exact board>
+build_flags =
+    ${env.build_flags}
+    -DMOTONAV_OLED_WIDTH=128
+    -DMOTONAV_OLED_HEIGHT=64
+    -DMOTONAV_OLED_I2C_ADDR=0x3C
+    -DMOTONAV_I2C_SDA=<gpio>
+    -DMOTONAV_I2C_SCL=<gpio>
+```
+
+A commented copy of this template is in `firmware/platformio.ini`. The only
+environment defined there that actually builds, `compile_check_esp32dev`, uses
+**placeholder** values purely so the code compiles. It is not a statement about
+your wiring.
+
+What the firmware prints on the serial monitor (115200 baud) at boot, so you can
+check the hardware before trusting the screen:
+
+1. The configuration it was built with.
+2. An **I2C scan**: every address that answers. If your display does not show
+   up, the wiring, power or pin numbers are wrong. The address it reports is the
+   one to put in `MOTONAV_OLED_I2C_ADDR`.
+3. Either `display: initialised`, or `display: no answer at 0x.. (I2C error N)`.
+   On failure it retries every 2 seconds and never reboots in a loop.
+
+Not handled yet: a display unplugged while running is not detected (the Adafruit
+driver does not report I2C write errors), and SPI displays are not supported.
+
+## Example wiring (Assumption, not used by the firmware)
+
+**An example only, valid for a 4-pin I2C display on a classic ESP32 DevKit.** To
+be confirmed or corrected once the board and display are identified.
 
 | Display pin | ESP32 pin |
 |---|---|
@@ -67,8 +104,8 @@ Notes:
   I2C lines at ESP32 logic level.
 - Most modules include I2C pull-up resistors. If the display is not detected,
   check the address and the wiring before adding external pull-ups.
-- The pin numbers will be set in one place in the firmware so a different board
-  needs a one-line change.
+- The pin numbers are set only in `platformio.ini`, so a different board needs
+  only a different environment.
 
 ## Later phases (not started)
 
