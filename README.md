@@ -18,16 +18,17 @@ Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
 | Phase 0 — discovery and planning | Implemented (documents only) | Approved. |
 | Phase 1 — display prototype | Implemented and host-tested. **Not device-tested.** | Awaiting your review. Results in [TESTING.md](TESTING.md). |
 | ESP32 firmware: model, screens, simulation | Host-tested | 34 automated tests pass on a normal computer. |
-| ESP32 firmware: device code (`main.cpp`, SSD1306 adapter) | Compile-checked for generic ESP32, S3 and C3 (0 warnings). **Never run on a board.** | See [TESTING.md](TESTING.md). |
+| ESP32 firmware: device code (`main.cpp`, SSD1306 adapter) | Compile-checked for the classic-ESP32 DevKit target (0 warnings). **Never run on a board.** | See [TESTING.md](TESTING.md). |
 | BLE protocol | Planned | Phase 2. Not started. |
 | Android app | Planned | Phase 3. |
 | Google Navigation SDK integration | Planned | Phase 4. Commercial-terms questions are open, see [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md#technical-risks-and-unknowns). |
-| Hardware identification | Blocked | Needs input from the person with the board. See [HARDWARE.md](HARDWARE.md). |
+| Hardware | **Provisional** | From product listings: classic ESP32 30-pin DevKit (CP2102), 0.96" 128x64 I2C OLED, expected SSD1306. **Not verified on the parts.** Verification steps and diagnostics are in [HARDWARE.md](HARDWARE.md) section 4. |
 
 **Nothing has been run on a real board or display yet.** All firmware results so
 far are *host* results (automated tests and rendered images on a normal
-computer). The board and display are still unidentified, so the firmware has no
-default pins and will not build until you give it yours. There is no BLE and no
+computer) plus compile checks. The hardware is identified only from product
+listings, so the pin numbers, the display size and the OLED address in
+`firmware/platformio.ini` are provisional until verified. There is no BLE and no
 Android code.
 
 ## Try it
@@ -41,8 +42,15 @@ make test      # layering check + 34 tests, with sanitizers
 make render    # writes out/*.pbm and out/montage_*.png to look at
 ```
 
-Flashing a board: see [HARDWARE.md](HARDWARE.md#configuring-the-firmware-implemented-not-yet-used-on-real-hardware)
-and the device test procedures in [TESTING.md](TESTING.md).
+On the board, in this order (details in [HARDWARE.md](HARDWARE.md) section 4 and
+[TESTING.md](TESTING.md) section 3):
+
+```bash
+cd firmware
+pio run -e hw_check   -t upload && pio device monitor   # chip identity + I2C scan
+pio run -e oled_check -t upload && pio device monitor   # SSD1306 or SH1106?
+pio run -e motonav    -t upload && pio device monitor   # the firmware
+```
 
 ## Documents
 

@@ -223,11 +223,14 @@ show the straight arrow.
 MotoNav/
 ├── README.md  ARCHITECTURE.md  HARDWARE.md  DEVELOPMENT_PLAN.md  DECISIONS.md  TESTING.md
 └── firmware/
-    ├── platformio.ini            no default env; compile-check env + template for the real board
+    ├── platformio.ini            envs: motonav (default), hw_check, oled_check; provisional hardware values
     ├── src/                      device-only code (the only code that touches hardware)
     │   ├── main.cpp              setup, loop, I2C scan, display init/retry, serial commands, stats
     │   ├── ssd1306_canvas.h      Canvas adapter over Adafruit GFX + SSD1306
-    │   └── display_config.h      required build flags; no default pins or addresses
+    │   ├── display_config.h      required build flags; no default pins or addresses
+    │   └── tools/                standalone diagnostics, not part of the firmware
+    │       ├── hw_check.cpp      chip identity + I2C scan
+    │       └── oled_check.cpp    SSD1306 vs SH1106 test patterns
     ├── lib/motonav/src/          hardware-independent code, built for the device AND the host
     │   ├── core/                 nav_model, distance_format
     │   ├── sim/                  scripted simulation + serial command controller

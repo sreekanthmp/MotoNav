@@ -1,7 +1,7 @@
 # Development Plan
 
 Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
-**Planned**, **Blocked**. Last updated at the end of Phase 0 (2026-11-08).
+**Planned**, **Blocked**. Last updated after the hardware was provisionally identified (2026-11-08).
 
 Rule: each phase ends at a review. The next phase does not start until the
 project owner approves.
@@ -11,7 +11,7 @@ project owner approves.
 | Phase | Status | Notes |
 |---|---|---|
 | 0 — Discovery and planning | Implemented (documents only) | Approved. |
-| 1 — ESP32 display prototype | Implemented and host-tested. **Not device-tested.** | Awaiting your review. See [Phase 1 results](#phase-1-results). The board and display are still unidentified, so nothing has run on hardware. |
+| 1 — ESP32 display prototype | Implemented and host-tested. **Not device-tested.** | Awaiting your review. See [Phase 1 results](#phase-1-results). The hardware is identified only provisionally (from product listings) and no validation has been run, so nothing has run on hardware. |
 | 2 — Bluetooth communication | Planned | |
 | 3 — Android app foundation | Planned | |
 | 4 — Google Navigation SDK | Planned | Commercial-terms questions open. |
@@ -22,8 +22,9 @@ project owner approves.
 
 - The repository was empty: no commits locally or on the GitHub remote, no
   files, no existing code or dependencies to preserve.
-- No hardware was reachable, so the ESP32 model and display configuration are
-  **not identified**. See [HARDWARE.md](HARDWARE.md).
+- No hardware was reachable, so the ESP32 model and display configuration were
+  **not identified** at the time. (Since then the project owner has supplied
+  *provisional* details from product listings; see [HARDWARE.md](HARDWARE.md).)
 - Google's TurnByTurn feed is documented for exactly this kind of device, with
   two-wheeled vehicles named as an example. Details and sources are in
   [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -90,11 +91,14 @@ and before any manufacturing commitment.
 
 ### C. Hardware and display
 
-11. **Board and display not identified.** Still unanswered after Phase 0. The
-    firmware is written not to depend on them, but nothing can be **device-tested**
-    (criteria 2, 4, 5-device, 6-device, 7) until they are known and the board is flashed.
-12. **"SSD1306" may actually be SH1106** (common on 1.3 inch modules). Phase 1 only
-    drives an SSD1306. The symptom of a mismatch is a shifted image.
+11. **Hardware identified only from product listings.** The chip, display size, address
+    and wiring are unverified. Nothing can be **device-tested** (criteria 2, 4,
+    5-device, 6-device, 7) until the validation H1-H5 passes and the board is flashed.
+    The firmware refuses to build for a non-classic chip and the diagnostics report the
+    real chip, so a wrong assumption is caught early rather than silently.
+12. **"SSD1306" may actually be SH1106.** Phase 1 only drives an SSD1306. A mismatch shows
+    as a missing left edge and a speckled right edge. `oled_check` tests for it (H5). If it
+    is an SH1106, one display adapter has to be written; the screens do not change.
 13. **Readability.** A small monochrome OLED is hard to read in direct sunlight,
     and static content can cause burn-in over long periods. This affects the
     prototype demo only. The production display is a separate decision.
@@ -131,13 +135,12 @@ data. No Bluetooth, no Android.
 
 ### Inputs needed from the project owner
 
-**Still outstanding.** They did not block writing the code, because the firmware
-takes every hardware value from the build and assumes nothing. They block all
-**device** testing.
-
-1. Exact ESP32 board and chip (commands in [HARDWARE.md](HARDWARE.md)).
-2. Display: resolution (128x64 or 128x32), interface (I2C 4-pin or SPI 7-pin),
-   and if possible the I2C address and how it is wired.
+**Received, provisionally.** Taken from product listings on 2026-11-08: classic ESP32
+30-pin DevKit with CP2102, 0.96 inch 128x64 four-pin I2C OLED, expected SSD1306, wiring
+SDA=GPIO21, SCL=GPIO22. These are now in `firmware/platformio.ini` and
+[HARDWARE.md](HARDWARE.md), but **none is verified**, and the OLED's I2C address is still
+unknown (0x3C is a guess). Verification is the hardware validation H1-H5 in
+[TESTING.md](TESTING.md), using the `hw_check` and `oled_check` diagnostics.
 
 ### Approach
 
@@ -212,7 +215,7 @@ rendered images on a normal computer. "Device" = the real board, **not done**.
 
 | # | Criterion | Host result | Device result |
 |---|---|---|---|
-| 1 | Firmware builds for the target board | **Compile-checked** (not run) for generic classic ESP32, ESP32-S3 and ESP32-C3 targets with the placeholder pins, 0 warnings. The real board is still unidentified, so this is not yet a build for "the target board". | n/a |
+| 1 | Firmware builds for the target board | **Compile-checked** (not run) for `esp32doit-devkit-v1`, the provisional target: the firmware and two diagnostics, 0 warnings. Building for any other chip is refused. The real board is not yet verified. | n/a |
 | 2 | Display initialises reliably; failed init recovers | Logic written (probe, retry every 2 s, no reboot loop). **Not host-testable.** | **Not run.** Needs the board (D1, D2). |
 | 3 | All five screens render as specified | **Pass**: every screen at 128x64 and 128x32, bounds-checked, images reviewed | **Not run** (D3) |
 | 4 | All 10 arrows recognisable | Images reviewed by the AI assistant and judged recognisable after two fixes. All 11 icons pairwise different, left/right mirrored. This is a judgement on a bitmap, not on the panel. | **Not run** (D4) |
@@ -221,8 +224,8 @@ rendered images on a normal computer. "Device" = the real board, **not done**.
 | 7 | 12-hour soak, no reset, stable heap | Statistics line implemented (uptime, free heap, minimum heap, frames). **Not host-testable.** | **Not run** (D7) |
 | 8 | `TESTING.md` records results, marking Host vs Device | **Done** | — |
 
-**Phase 1 cannot be called complete until D1-D7 are run on the real board.** What is
-done is everything that can be proven without hardware.
+**Phase 1 cannot be called complete until the hardware validation (H1-H5) and D1-D7 are run
+on the real board.** What is done is everything that can be proven without hardware.
 
 ### Deviations from the approved plan
 

@@ -10,7 +10,7 @@ Every result below is labelled with where it was obtained:
   device-tested yet.** The board and display have not been identified (see
   [HARDWARE.md](HARDWARE.md)), and the AI assistant has no access to hardware.
 
-Last updated at the end of Phase 1 (2026-11-08).
+Last updated after the hardware was provisionally identified (2026-11-08). Phase 1 device tests and the hardware validation have not been run.
 
 ## 1. Host tests
 
@@ -80,45 +80,90 @@ panel, including readability at arm's length and in sunlight, is not known yet.*
 
 ## 2. Compile check of the device code
 
-**Compile-checked. Not run.** The device-side code (`src/main.cpp`,
-`src/ssd1306_canvas.h`, `src/display_config.h`) plus the shared library was built
-with PlatformIO for three generic ESP32 targets. The boards and pin numbers in
-these environments are **placeholders** so the code compiles; they say nothing about
-the real hardware.
+**Compile-checked. Not run.** The device-side code was built with PlatformIO for the
+board `esp32doit-devkit-v1` (a classic ESP32, 4 MB flash). The hardware itself is
+still **provisional** (see [HARDWARE.md](HARDWARE.md)).
 
-| Environment | Board (generic) | Result | Static RAM | Flash (app partition) | Warnings |
+| Environment | What it is | Result | Static RAM | Flash (app partition) | Warnings |
 |---|---|---|---|---|---|
-| `compile_check_esp32dev` | classic ESP32 | **SUCCESS** | 23,812 B (7.3 %) | 372,520 B of 1,310,720 B (28.4 %) | 0 |
-| `compile_check_esp32s3` | ESP32-S3 | **SUCCESS** | 23,800 B (7.3 %) | 403,842 B of 3,342,336 B (12.1 %) | 0 |
-| `compile_check_esp32c3` | ESP32-C3 | **SUCCESS** | 15,244 B (4.7 %) | 385,754 B of 1,310,720 B (29.4 %) | 0 |
+| `motonav` | the MotoNav firmware | **SUCCESS** | 23,812 B (7.3 %) | 373,388 B of 1,310,720 B (28.5 %) | 0 |
+| `hw_check` | diagnostic: chip identity + I2C scan | **SUCCESS** | 23,556 B (7.2 %) | 333,268 B of 1,310,720 B (25.4 %) | 0 |
+| `oled_check` | diagnostic: SSD1306 vs SH1106 test patterns | **SUCCESS** | 23,684 B (7.2 %) | 355,924 B of 1,310,720 B (27.2 %) | 0 |
 
-Built with `-Wall -Wextra`. Versions (pinned in `firmware/platformio.ini`, 2026-11-08):
-PlatformIO Core 6.2.0, platform `espressif32@8.0.0`, framework package
-`framework-arduinoespressif32@4.30312.261024`, toolchain packages `toolchain-xtensa-esp-elf` and `toolchain-riscv32-esp` 14.2.0+20260121, Adafruit GFX
-Library 1.13.0, Adafruit SSD1306 2.5.17, Adafruit BusIO 1.17.4.
+Built with `-Wall -Wextra`. Versions (pinned in `firmware/platformio.ini`): PlatformIO
+Core 6.2.0, platform `espressif32@8.0.0`, framework package
+`framework-arduinoespressif32@4.30312.261024`, toolchain packages
+`toolchain-xtensa-esp-elf` and `toolchain-riscv32-esp` 14.2.0+20260121, Adafruit GFX
+Library 1.13.0, Adafruit SSD1306 2.5.17, Adafruit BusIO 1.17.4, esptool 5.4.0.
+Most of the flash is the Arduino core itself. RAM is static usage only; heap behaviour at
+run time is measured by the soak test (D7).
 
-Most of the flash is the Arduino core itself; the MotoNav code is a small part of it.
-RAM is static usage only; heap behaviour at run time is measured by the soak test (D7).
+Build-system checks, each performed:
 
-The "no default pins" guard was also checked: a build with any of the five
-`MOTONAV_*` display values missing stops with the explanatory `#error`, and with all
-five present it passes.
+| Check | Result |
+|---|---|
+| Each environment compiles only its own sources (`hw_check` and `oled_check` define their own `setup()`; `motonav` excludes `tools/`) | Confirmed from the build output |
+| Building the firmware for an ESP32-S3 (scratch copy) | **Refused** by the `#error` in `src/main.cpp`. The classic-ESP32-only rule is enforced. |
+| Building with any of the five `MOTONAV_*` display values missing | Refused by `display_config.h` (checked in the first Phase 1 pass) |
+| The Arduino variant for this board defines `SDA = 21`, `SCL = 22` | Read from the installed package |
+| `esptool chip-id` and `flash-id` exist in the pinned esptool 5.4.0 | `--help` checked; **not run against a board** |
 
-What this does **not** show: that the firmware runs, that the I2C wiring or address is
-right, that the display initialises, or how anything looks. Those are device tests.
+History: in the first Phase 1 pass, before the board was identified, the firmware was
+also compile-checked for generic ESP32-S3 and ESP32-C3 targets (it built for both). Those
+environments were removed once the board was identified as a classic ESP32.
 
-## 3. Device tests (to be run by the board owner)
+What this does **not** show: that any of it runs, that the I2C wiring or address is right,
+that the display initialises, or how anything looks. Those are the tests below.
 
-**None of these has been run.** Do them in this order; record results in the tables.
+## 3. Hardware validation and device tests (to be run by the board owner)
 
-### Setup
+**None of these has been run.** The AI assistant has no access to the hardware, so every
+result in this section has to come from you. Do H1 to H5 first (the full procedure with
+explanations is in [HARDWARE.md](HARDWARE.md) section 4), then D1 to D7. **Stop at the
+first step that fails and report it.**
 
-1. Identify the board and display ([HARDWARE.md](HARDWARE.md)).
-2. Create a PlatformIO environment for your board from the template in
-   `firmware/platformio.ini` with your five display values.
-3. `pio run -e myboard -t upload`, then `pio device monitor` (115200 baud).
-4. Expected at boot: the configuration line, an I2C scan listing your display's
-   address, `display: initialised`, then the screens cycling.
+### What to send back
+
+- The text of the `hw_check` serial output (copy and paste it).
+- Photos of the three `oled_check` patterns, taken close to the glass.
+- A photo of the ESP32 module marking and one of the finished wiring.
+- Any error message, exactly as printed.
+
+### Hardware validation (H1 to H5)
+
+| Step | What to do | Pass when | Result | Evidence / notes |
+|---|---|---|---|---|
+| **H1** Look and wire | HARDWARE.md V1 and section 3, with USB **unplugged** | Module marking is an ESP32-WROOM family part; USB chip is a CP2102; OLED pin order read from its own labels and wired by label | | |
+| **H2** USB and upload | HARDWARE.md V2: a serial port appears; `pio run -e hw_check -t upload` | Port found; upload completes | | |
+| **H3** Chip identity | HARDWARE.md V3: read `hw_check` output | Says `RESULT: classic ESP32. Matches the build target.` and lists Wi-Fi and BLE | | |
+| **H4** OLED address | HARDWARE.md V4: read the I2C section of `hw_check` | One device at 0x3C or 0x3D, and the line `Firmware is configured for 0x..: FOUND`. If it says NOT FOUND, edit `MOTONAV_OLED_I2C_ADDR` in `platformio.ini`, reflash `hw_check` and confirm FOUND | | |
+| **H5** Controller | HARDWARE.md V5: flash `oled_check`, count lines in pattern 3 | **All three** patterns exactly as described in HARDWARE.md V5 (four lines at the left edge in pattern 3, a complete border in pattern 1, solid white to every edge in pattern 2). Anything else: report with photos | | |
+
+Decisions that follow:
+
+- H3 fails: **stop**. The target chip changes.
+- H5 shows an SH1106: **stop**. A different display driver is needed.
+- Anything else mismatched: see HARDWARE.md section 5.
+
+Record the facts that were confirmed, so the documentation can be updated from provisional
+to verified:
+
+| Fact | Value found |
+|---|---|
+| Chip model string (from `hw_check`) | |
+| Chip revision, cores, flash size | |
+| OLED I2C address | |
+| OLED controller | |
+| OLED size actually shown | |
+
+### Phase 1 device tests (D1 to D7), after H1 to H5 pass
+
+Setup:
+
+1. `cd firmware`
+2. `pio run -e motonav -t upload`, then `pio device monitor` (115200 baud).
+3. Expected at boot: the chip line, the configuration line, an I2C scan listing your
+   display's address, `display: initialised`, then the screens cycling.
 
 ### D1. Reliable initialisation (acceptance criterion 2)
 
