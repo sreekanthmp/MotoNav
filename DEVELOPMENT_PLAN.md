@@ -1,7 +1,7 @@
 # Development Plan
 
 Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
-**Planned**, **Blocked**. Last updated after Phase 3 (Android test sender) was prepared (2026-11-08).
+**Planned**, **Blocked**. Last updated after Phase 4a (Google Navigation SDK conversion) was prepared (2026-11-08).
 
 Rule: each phase ends at a review. The next phase does not start until the
 project owner approves.
@@ -14,7 +14,7 @@ project owner approves.
 | 1 — ESP32 display prototype | Implemented and host-tested. **Not device-tested.** | Approved by the project owner, including the hardware diagnostics and the validation procedure. **Physical hardware validation (T1-T6) is the current stage and has not been run.** See [Phase 1 results](#phase-1-results). The hardware is identified only provisionally (from product listings) and no validation has been run, so nothing has run on hardware. |
 | 2 — Bluetooth communication (firmware side) | Protocol, codec and receiver **implemented and host-tested**. Radio code **compile-checked only**. **Not device-tested: nothing has run over a real Bluetooth link.** | Prepared at the owner's request ("we can test this in real hardware, but not now") while the Phase 1 hardware validation is pending. Separate environment `motonav_ble`; Phase 1 `motonav` unchanged. Messages are simulated (sent by hand from a generic BLE app); no Google SDK. See [Phase 2](#phase-2--bluetooth-le-link-firmware-side). **Awaiting review.** The device tests B1-B7 should wait until T1-T4 have passed. |
 | 3 — Android app foundation (test sender) | Protocol code and connection logic **implemented and host-tested**. The Android app is **compile-checked only**. **Not device-tested: it has never run on a phone, and never against a MotoNav.** | Prepared at the owner's request while the hardware validation is pending. Sends the Phase 2 simulated messages; not the navigation app and no Google SDK. See [Phase 3](#phase-3--android-test-sender). **Awaiting review.** The phone tests P1-P8 should wait until B1 and B2 have passed. |
-| 4 — Google Navigation SDK | Planned | Commercial-terms questions open. |
+| 4 — Google Navigation SDK | **4a** (everything that needs no account): the feed conversion is **implemented and host-tested**; the SDK glue is **compile-checked only**. **The Google parts have never run: no key, no account, no phone.** **4b** (tests N1-N7) is **not started** and needs you. | Prepared at the owner's "go". See [Phase 4a](#phase-4a--google-navigation-sdk-everything-that-needs-no-account). Commercial-terms questions are still open. **Awaiting review.** |
 | 5 — Navigation reliability | Planned | |
 | 6 — Production hardware investigation | Planned | Not started on purpose. |
 
@@ -75,11 +75,15 @@ and before any manufacturing commitment.
    the screen off and the phone in a pocket (the normal riding case).
    Partial evidence only: the release notes mention an SDK-owned
    foreground `NavigationService`, and the FAQ says the location provider
-   "runs in the background by default". This is the highest-value technical
-   spike and should happen at the start of Phase 4, not Phase 5.
-7. **Arrival signalling.** The SDK has no `ARRIVED` nav state. Arrival must be
-   derived from the `DESTINATION*` maneuver and/or a separate event that has not
-   been verified.
+   "runs in the background by default". The turn-by-turn guide adds that the receiving
+   service "can live in a separate background process". **Phase 4a could not run this
+   spike** (it needs a phone and a key): it is test N5 in TESTING.md section 7, and the
+   highest-value unknown that remains. The test screen holds the connection, so it is
+   expected to stop when the app is closed.
+7. **Arrival signalling.** The SDK has no `ARRIVED` nav state. **Resolved in design in Phase 4a:**
+   the SDK has a real event, `Navigator.ArrivalListener.onArrival(ArrivalEvent)` with
+   `isFinalDestination()` (read from the SDK's class files and its guide), and the converter uses
+   it instead of guessing from distances (D-55). Whether the event arrives as documented is unverified (N3).
 8. **BLE payload size.** The default ATT MTU leaves 20 usable bytes. Road names
    and a full snapshot may not fit in one write unless the MTU is negotiated or
    the protocol sends changed fields only. **Decided in Phase 2:** every message is a full
@@ -89,7 +93,10 @@ and before any manufacturing commitment.
    Android 12+ Bluetooth permissions). Needs on-device testing across at least
    two phones.
 10. **Left/right U-turn and roundabout direction semantics** are inconsistent in
-    Google's own text. Must be tested on the road or with a simulated route.
+    Google's own text. **Partly resolved in Phase 4a:** Google defines the U-turn maneuvers as
+    a "clockwise" or "counterclockwise turn onto the opposite side of the street" and picks the
+    label from the driving side, so clockwise is the right-hand icon (D-58). The guide's one
+    contradictory sentence is a typo. Not yet confirmed on a real road (N4).
 
 ### C. Hardware and display
 
@@ -168,6 +175,25 @@ and before any manufacturing commitment.
     accepted SDK licence. A fresh developer machine needs JDK 17 or newer and the Android SDK
     (platform 37.0, build-tools 36.0.0); the first build downloads about 140 MB of Gradle and
     plugins.
+
+### G. Google Navigation SDK (found in Phase 4a)
+
+32. **None of the Google parts has run.** There is no API key, no Google account and no phone. Rate, content,
+    arrival and background behaviour of the feed are documentation, not observation (tests N1 to N7).
+33. **Cost.** The SDK is billed per destination (ARCHITECTURE.md section 2). What testing costs is unknown until N7.
+    Commercial terms (section A) are still open, including attribution for a separate hardware display.
+34. **The SDK merges broad permissions into the app**, including background location, notifications,
+    storage, boot-completed and wake lock. They will matter for Google Play review and the Location Purpose Declaration.
+    The SDK also sets `largeHeap`. Removing permissions may break the SDK, so this needs a deliberate review.
+35. **Size.** The debug APK is about 65 MB with the SDK, against under 1 MB without it.
+36. **Version combination.** Google's table for SDK 8.x names Gradle 9.1.0 and AGP 9.0.1; the project uses Gradle 9.6.0
+    and AGP 9.5.1 (needed for API 37). It builds; whether Google has tested it is unknown.
+37. **The SDK's data classes are beta** with no promise of compatibility. Mitigated by the single `:navsdk` module and by a
+    test that fails if the SDK adds a maneuver the table does not know.
+38. **Indian-script road names show nothing on the display** (shown concretely by a reviewed test case). For a rider in India this
+    will be common. A product decision is needed: fall back to an English or transliterated name, or change the display font (Phase 6).
+39. **If the SDK, the feed or the app is killed, the device keeps showing the last state.** There is no stale-data detection yet (Phase 5; risk 25).
+40. **The SDK may store data of its own.** D-05 (no road names stored) is checked for our code only.
 
 ## Phase 1 — ESP32 display prototype
 
@@ -363,12 +389,49 @@ the phone tests P1 to P8 and the board output each should produce.
 
 Phase 3 stops here. Phase 4 (Google Navigation SDK) starts only after review.
 
+## Phase 4a — Google Navigation SDK (everything that needs no account)
+
+**Goal:** turn Google's turn-by-turn feed into the messages the device already understands, as far as possible
+without a Google account, an API key, billing or a phone. "4b" is the rest, which only the owner can do (tests N1 to N7).
+
+**How it was done.** The Navigation SDK 8.1.0 package was downloaded and its class files were read, together with Google's
+reference pages and guides, so the code is written against the real API. The conversion is pure and uses the SDK's own
+data classes in tests. Everything that talks to Google's services is compile-checked only.
+
+**Delivered:** the `:navsdk` module ([android/README.md](android/README.md)): `ManeuverMap` (all 66 Google maneuvers), `NavInfoConverter`,
+`NavFeed`, `NavUpdatesService` and `NavigationController`; the test screen's "Real navigation" section (destination, optional simulated
+start, simulated drive, feed counters); `protocol/navinfo_cases.txt` and a Python replay through the firmware's real receiver; source checks (Google
+types only in `:navsdk`, no API key committed, fine location on every Android version); and [TESTING.md](TESTING.md) section 7 with the
+tests N1 to N7.
+
+### Phase 4a acceptance criteria and results
+
+| # | Criterion | Verified by | Result |
+|---|---|---|---|
+| 1 | Every Google maneuver maps to a device icon, and an SDK update that adds one is noticed | Host (reads the constants from the SDK) | **Pass** (66 of 66) |
+| 2 | Feed messages become device messages correctly: states, missing and negative numbers, road names, roundabout exits, arrival | Host, with the SDK's own data classes | **Pass** (27 tests incl. 20,000 random messages) |
+| 3 | 17 reviewed feed messages produce the expected screens on the firmware's real receiver | Host | **Pass** |
+| 4 | Google types appear only in `:navsdk`; no API key is committed; fine location is declared on every Android version | Host (source checks) | **Pass** |
+| 5 | The app builds against the real SDK with no compiler warnings and no lint findings | Compile | **Pass** |
+| 6 | The SDK starts with a valid key, shows Google's terms, and accepts a two-wheeler route | Device | **NOT RUN** (N1, N2) |
+| 7 | The feed arrives about once a second and the display follows a route, including arrival | Device | **NOT RUN** (N2, N3) |
+| 8 | Icons are right on a U-turn in both traffic sides | Device | **NOT RUN** (N4) |
+| 9 | The feed and the link survive the screen being off | Device | **NOT RUN** (N5) |
+| 10 | A short real ride; and what testing costs | Device | **NOT RUN** (N6, N7) |
+
+**Phase 4 cannot be called complete until N1 to N7 are run.** Phase 4a stops here; Phase 5 (reliability) starts only after review.
+
+### Deviations from the plan
+
+1. **The headless/background spike did not come first**, as the plan said it should (risk 6). It needs a phone and a key, so it is test N5.
+2. **Arrival uses the SDK's event** rather than the `DESTINATION*` maneuver (risk 7).
+
 ## Later phases (summary, not yet planned in detail)
 - **Phase 3 (prepared, see above):** Kotlin test sender: scan, connect, request the MTU, send
   simulated navigation messages. Passes `protocol/vectors.txt`. Remembering the paired device
   was left out: it belongs with reconnection in Phase 5.
-- **Phase 4:** Navigation SDK integration, starting with the headless/background
-  spike (risk 6).
+- **Phase 4 (4a prepared, see above):** Navigation SDK integration. 4b is the owner's part: key, billing, terms, and
+  the tests N1 to N7, starting with the headless/background question (risk 6, test N5).
 - **Phase 5:** reliability: reconnection, stale-data detection, interruption
   handling, real-journey testing.
 - **Phase 6:** production hardware investigation.

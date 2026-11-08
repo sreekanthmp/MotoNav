@@ -2,12 +2,12 @@
 
 **Status.** The firmware side is **implemented** and **host-tested**: the frame codec, the
 receiver and its sequence rules, and the path from received bytes to what the display shows
-(77 C++ and 93 Python tests, including fuzzing and a cross-check against an independent
+(77 C++ and 105 Python tests, including fuzzing and a cross-check against an independent
 implementation). The Bluetooth radio code is **compile-checked only**. **It has never run over a
 real Bluetooth link**, because no radio hardware was available. The phone side is a test sender
 for Android (`android/`, Phase 3): its protocol code is **host-tested** against the same vectors
-(138 Kotlin tests); its Bluetooth adapter is **compile-checked only** and has never run on a phone.
-The real navigation app is not implemented (Phases 4 and 5). Where this document says what the firmware "does", that is what the
+(138 Kotlin tests for the protocol code and connection logic); its Bluetooth adapter is **compile-checked only** and has never run on a phone.
+The conversion from Google's navigation data is host-tested too (Phase 4a); the real navigation app is not finished (Phase 5). Where this document says what the firmware "does", that is what the
 tested logic does; how a real phone and the real radio behave is unknown until the device tests
 in [TESTING.md](TESTING.md) sections 5 and 6 are run.
 

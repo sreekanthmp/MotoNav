@@ -11,17 +11,18 @@ Every result in this document carries one of three labels, and they are never mi
   has not marked any hardware test as passed. Every hardware result below says
   `NOT RUN` until the board owner fills it in with real evidence.
 
-Last updated: Phase 3 (Android test sender) prepared; the Phase 1 hardware validation is still pending (2026-11-08).
+Last updated: Phase 4a (Google Navigation SDK conversion) prepared; the Phase 1 hardware validation is still pending (2026-11-08).
 
 ## 0. Status at a glance
 
 | Area | Label | Status |
 |---|---|---|
 | Firmware logic: model, screens, simulation, diagnostics verdicts, Bluetooth frame codec and receiver (77 C++ tests) | Host-tested | pass |
-| Log analyser, `hw_check` and `oled_check` simulations, Bluetooth reference tool, documentation and source checks (93 Python tests) | Host-tested | pass |
+| Log analyser, `hw_check` and `oled_check` simulations, Bluetooth reference tool, documentation and source checks (105 Python tests) | Host-tested | pass |
 | Android protocol code and connection logic, against the shared vectors and a fake Bluetooth (106 + 32 Kotlin tests) | Host-tested | pass |
+| Google feed message to device message: maneuver table (all 66 SDK maneuvers), states, arrival, numbers, road names; 17 reviewed cases through the firmware's real receiver (27 Kotlin tests) | Host-tested | pass |
 | Firmware (`motonav`), both diagnostics and the Phase 2 firmware (`motonav_ble`) build with the real ESP32 toolchain | Compile-checked | pass, 0 warnings |
-| Android app builds with the real Android toolchain (0 compiler warnings, lint clean) | Compile-checked | pass |
+| Android app builds with the real Android toolchain and the real Navigation SDK 8.1.0 (0 compiler warnings, lint clean) | Compile-checked | pass |
 | **T1** ESP32 identification | Device-tested | **NOT RUN** |
 | **T2** I2C detection | Device-tested | **NOT RUN** |
 | **T3** OLED controller validation | Device-tested | **NOT RUN** |
@@ -30,6 +31,7 @@ Last updated: Phase 3 (Android test sender) prepared; the Phase 1 hardware valid
 | **T6** 12-hour soak (extended reliability test) | Device-tested | **NOT RUN** |
 | **B1** to **B7** Bluetooth LE (Phase 2, [section 5](#5-phase-2-bluetooth-le-prepared-nothing-has-run-over-a-real-bluetooth-link)) | Device-tested | **NOT RUN** |
 | **P1** to **P8** Android test sender on a phone (Phase 3, section 6) | Device-tested | **NOT RUN** |
+| **N1** to **N7** Google Navigation SDK: start, route, feed, end to end, screen off, ride, cost (Phase 4a, section 7) | Device-tested | **NOT RUN** |
 
 ## 1. Host tests
 
@@ -38,7 +40,7 @@ Python 3.
 
 ```bash
 make test                            # layering check + 77 C++ tests (gcc, ASan + UBSan, -Werror)
-make test-tools                      # builds the simulators, then 93 Python tests
+make test-tools                      # builds the simulators, then 105 Python tests
 make -B test CXX=clang++ SANITIZE=   # second compiler, no sanitizers
 make render                          # screen images in out/ (needs Pillow for the contact sheets)
 make reference                       # regenerates docs/reference/ (images and expected outputs)
@@ -51,8 +53,8 @@ make golden-update                   # accept a deliberate rendering change (loo
 |---|---|
 | gcc 13.3, `-std=c++11 -Wall -Wextra -Wpedantic -Werror`, AddressSanitizer + UBSan: `make test` | **77 tests, 339,828 checks, 0 failed** |
 | clang 18.1, same warnings, no sanitizers: `make test` | **77 tests, 339,828 checks, 0 failed**; golden hashes identical to gcc |
-| gcc with sanitizers: `make test-tools` | **93 Python tests, OK** |
-| JUnit 6.1.3, in `android/`: `./gradlew :protocol:test :link:test` | **106 + 32 Kotlin tests, OK** (section 6) |
+| gcc with sanitizers: `make test-tools` | **105 Python tests, OK** |
+| JUnit 6.1.3, in `android/`: `./gradlew :protocol:test :link:test :navsdk:testDebugUnitTest` | **106 + 32 + 27 = 165 Kotlin tests, OK** (sections 6 and 7) |
 | Layering check (`check_layering.sh`) | ok |
 
 clang could not be run with sanitizers: this sandbox's clang has no AddressSanitizer
@@ -1179,7 +1181,7 @@ message) and B4.
 
 Phase 3 adds an Android project in `android/` with a small test app. It finds a MotoNav over
 Bluetooth LE, connects, and sends the simulated navigation messages of section 5. It is **not**
-the navigation app: the Google Navigation SDK is Phase 4. How the project is built and laid out
+the navigation app: the Google Navigation SDK was added afterwards (Phase 4a, section 7). How the project is built and laid out
 is in [android/README.md](android/README.md).
 
 Nothing in this section has run on a phone, and nothing has run against a MotoNav. The protocol
@@ -1194,7 +1196,7 @@ talks to the phone's Bluetooth stack was only built.
 | The Kotlin codec against the shared files: all 45 vectors give the stated result, its encoder reproduces the 23 valid ones **byte for byte**, and its 17 simulated messages are identical to the Python tool's, byte for byte | Host-tested | pass |
 | Connection logic: set-up order, MTU rule, one write at a time, newest state wins, sequence per connection, resend after reconnecting, timeouts, every failure, plus 40 randomised runs of 2,000 events (32 tests) | Host-tested | pass |
 | The road name is never written to the system log, files, preferences or a database (a check on the sources) | Host-tested | pass |
-| The app builds: 0 compiler warnings, Android lint clean with warnings treated as errors, debug APK about 0.9 MB (the exact size varies with the build machine) | Compile-checked | pass |
+| The app builds: 0 compiler warnings, Android lint clean with warnings treated as errors, debug APK about 64.6 MB (the exact size varies with the build machine) | Compile-checked | pass |
 | The built APK declares the Bluetooth permissions Google's documentation prescribes (read back with `aapt2`) | Compile-checked | pass |
 | `BluetoothGatt` adapter, scanner, permission flow, screen: scanning, connecting, MTU, writes, notifications, reconnecting | Device-tested | **NOT RUN** |
 | **P1** install, **P2** permissions, **P3** find and connect, **P4** simulated states, **P5** play all, **P6** wrong messages, **P7** disconnect and failures, **P8** a second phone | Device-tested | **NOT RUN** |
@@ -1419,5 +1421,239 @@ middle and the last state); the phone's maker, model and Android version.
 - **The deprecated `connectGatt` call is used** (see DECISIONS.md D-49).
 - **Placeholder application id and icon** (`com.motonav.app`): to be decided before a release (D-45).
 - **English only**, and the screen is a test tool, not a product UI.
-- **There is no Google Navigation SDK** and no real navigation data. The messages are simulated.
+- **The messages in P1 to P8 are simulated.** Real navigation data from Google is section 7.
 - **No security** on the link: see BLUETOOTH_PROTOCOL.md section 11.
+
+## 7. Phase 4a: Google Navigation SDK (prepared; **none of the Google parts has ever run**)
+
+Phase 4a adds the code that turns Google's turn-by-turn feed into the messages of section 5, in a new
+Android module `:navsdk`: a conversion layer, the service the SDK feeds, and a controller that starts
+a route (optionally a simulated drive). It is wired into the test screen of section 6.
+
+"4a" means everything that can be done and proven **without** a Google account, an API key, billing
+or a phone. "4b" is the rest, which only you can do: section 7.6 (tests N1 to N7).
+
+What is proven, and what is not, in one place:
+
+- The Navigation SDK's own code has **never run**. It was downloaded, compiled against, and its
+  class files were read. No request has been made to Google; no key exists in this project.
+- The **conversion** from Google's data to our messages is tested with the SDK's own data classes, and
+  its output goes through the firmware's real receiver on a computer (section 7.2).
+- Whether Google's feed behaves as its documentation says (rate, content, arrival, what happens with
+  the screen off) is **unknown** until N1 to N5 are run.
+
+### 7.1 Status at a glance
+
+| Area | Label | Status |
+|---|---|---|
+| All 66 Google maneuvers map onto the 11 device icons; a test reads the constants from the SDK itself and fails if one is missing (27 tests in `:navsdk`) | Host-tested | pass |
+| Google feed message to device message: states, distances, missing and negative values, road names, roundabout exits, arrival (real SDK `NavInfo`/`StepInfo` objects, plus 20,000 random messages that must give nothing or a frame the device accepts) | Host-tested | pass |
+| 17 reviewed feed messages: Kotlin frames equal the shared golden file, and the firmware's real receiver shows the reviewed screen text (`protocol/navinfo_cases.txt`) | Host-tested | pass |
+| Source checks: Google types only in `:navsdk`; no API key committed; fine location declared on every Android version; no logging or storage of road names | Host-tested | pass |
+| The app builds with the SDK (0 compiler warnings, lint clean, warnings are errors); debug APK about 65 MB | Compile-checked | pass |
+| SDK feed service, route controller (`setDestinations`, two-wheeler mode, simulator, arrival listener), terms and permission flow, API-key handling | Compile-checked | pass (built against the real SDK classes) |
+| SDK start-up, key check, terms dialog, route calculation, the feed, arrival event, simulated drive | Device-tested | **NOT RUN** |
+| **N1** SDK start, **N2** simulated route, **N3** phone to board end to end, **N4** U-turn direction, **N5** screen off, **N6** a real ride, **N7** cost check | Device-tested | **NOT RUN** |
+
+### 7.2 What the tests cover (Host-tested)
+
+Run from `android/`: `./gradlew :navsdk:testDebugUnitTest`. No phone, key or network is used. The SDK's classes are on the class path
+only as data (`NavInfo`, `StepInfo` and their builders).
+
+| Test | What it checks |
+|---|---|
+| Maneuver table | there are 66 SDK maneuvers numbered 0 to 65; every one is in the table; the groups are the ones in ARCHITECTURE.md; left is never shown as right; counterclockwise U-turns are the left icon and clockwise the right one; every roundabout constant is a roundabout |
+| Converter | a normal turn with every field; a missing or negative number is "unknown", never 0; the largest number the SDK can give is not confused with "unknown"; simple road name preferred, full name as fallback, cut between characters; roundabout exit number (none, negative or 5,000 handled; ignored on other maneuvers); REROUTING, STOPPED (clears the device so no old turn lingers) and UNKNOWN; an ENROUTE message without a step is ignored, not guessed; arrival from the SDK's arrival event, kept until a new route, ended by rerouting |
+| Random | 20,000 random messages (random states, maneuvers including values the SDK does not have, missing, negative and huge numbers, empty, NUL-containing, non-Latin and lone-surrogate names): the result is nothing, or a frame the device codec accepts and decodes to the same update |
+| Golden frames | 17 feed messages produce exactly the frames in `protocol/navinfo_cases.txt` |
+| Python replay | `test_navinfo_cases.py` sends those frames through the firmware's real C++ receiver and compares the text of what the display would show with the third column of the file, which was written and reviewed by hand |
+
+What the 17 reviewed cases show (the display text is from the firmware's real receiver):
+
+| Case | What the display shows |
+|---|---|
+| `straight_1200` | `screen=Navigating icon=Straight distance="1.2 km" road="Ring Road"` |
+| `turn_left_450` | `screen=Navigating icon=TurnLeft distance="450 m" road="MG Road"` |
+| `ramp_right_300` | `screen=Navigating icon=TurnRight distance="300 m" road="NH 48"` |
+| `keep_left_200` | `screen=Navigating icon=SlightLeft distance="200 m" road="Outer Ring Road"` |
+| `fork_right_900` | `screen=Navigating icon=SlightRight distance="900 m" road="Mysore Road"` |
+| `sharp_right_120` | `screen=Navigating icon=SharpRight distance="100 m" road="Church Street"` |
+| `uturn_counterclockwise_80` | `screen=Navigating icon=UTurnLeft distance="80 m" road="Brigade Road"` |
+| `uturn_clockwise_80` | `screen=Navigating icon=UTurnRight distance="80 m" road="Brigade Road"` |
+| `roundabout_exit3_200` | `screen=Navigating icon=Roundabout exit=3 distance="200 m" road="Station Road"` |
+| `destination_approach_60` | `screen=Navigating icon=Arrived distance="60 m" road="Park Street"` |
+| `distance_unknown` | `screen=Navigating icon=TurnRight distance="--" road="MG Road"` |
+| `road_name_full_fallback` | `screen=Navigating icon=TurnLeft distance="150 m" road="Mahatma Gandhi Road"` |
+| `road_name_non_latin` | `screen=Navigating icon=TurnLeft distance="250 m" road=""` |
+| `road_name_long` | `screen=Navigating icon=Straight distance="5.0 km" road="Sir Mokshagundam Visvesvaraya R"` |
+| `rerouting` | `screen=Rerouting` |
+| `stopped` | `screen=Ready` |
+| `arrived` | `screen=Arrived` |
+
+Two things in that table deserve attention. `sharp_right_120` shows 100 m because the display rounds distances
+(D-22). `road_name_non_latin` shows **no road name**: the display font is ASCII only (D-20), and a rider in India
+will often get road names in Indian scripts. That is a known limitation, not a conversion bug.
+
+Bugs were injected one at a time and each was detected (the code was restored and verified identical):
+
+| Injected bug | Failing tests |
+|---|---|
+| clockwise U-turn shown as a left U-turn | 1 |
+| one SDK maneuver left out of the table | 1 |
+| slight left shown as slight right | 2 |
+| a negative distance sent as 0 | 1 |
+| STOPPED keeps showing the last turn | 3 |
+| full road name preferred over the simple one | 3 |
+| rerouting does not end the arrived state | 1 |
+| an unknown navigation state treated as Ready | 1 |
+
+The source checks were each shown to fail when their rule is broken: fine location capped at Android 11, an
+API-key-shaped string in a source file, a Google import in the app module.
+
+### 7.3 What was read from the SDK itself (Verified, 2026-11-08)
+
+The Navigation SDK 8.1.0 package was downloaded and its class files read with `javap`; Google's reference pages and guides
+were read as well. Facts the code relies on:
+
+| Fact | Source |
+|---|---|
+| `TurnByTurnManager.MSG_NAV_INFO` is 7200; `createInstance()` and `readNavInfoFromBundle(Bundle)` decode a feed message | class files, guide |
+| The feed arrives "about once a second"; the SDK binds to our service and sends through a `Messenger`; the service starts when registered | guide |
+| `NavInfo` and `StepInfo` have public builders; `NavState` is `UNKNOWN`, `ENROUTE`, `REROUTING`, `STOPPED` | class files |
+| During REROUTING "the upcoming maneuver step is not available"; STOPPED means "navigation has ended" | guide |
+| The SDK has 66 maneuvers (0 to 65). U-turns are "clockwise" or "counterclockwise turn onto the opposite side of the street", and the SDK picks the label from the country's driving side | class files, reference |
+| `Navigator.ArrivalListener.onArrival(ArrivalEvent)` with `isFinalDestination()` exists, so arrival does not have to be guessed | class files, guide |
+| `RoutingOptions.TravelMode.TWO_WHEELER` exists (value 3); `Simulator` can place a pretend vehicle and drive the route (`speedMultiplier`) | class files, guide |
+| The feed options default to no preview steps and no step images; the guide's example asks for bitmaps, which we do not want | class files |
+| `setDestinations(list, routingOptions)` is deprecated; the replacement takes a `RouteDescriptionLoadCallback` | reference |
+| Core library desugaring (`desugar_jdk_libs_nio` 2.1.5) is required in the app and in every module that uses the SDK | build failure, guide |
+| The API key goes in a manifest `<meta-data android:name="com.google.android.geo.API_KEY">`; Google suggests a git-ignored `secrets.properties` | guide |
+| The SDK's own manifest adds, among others: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, **`ACCESS_BACKGROUND_LOCATION`**, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE_LOCATION`, `INTERNET`, `READ/WRITE_EXTERNAL_STORAGE`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK` | merged manifest of the built APK |
+
+Not matching what Google lists: Google's table for SDK 8.x names Gradle 9.1.0 and AGP 9.0.1; this project uses Gradle 9.6.0 and
+AGP 9.5.1 (needed for API 37). It builds, but whether Google has tested that combination is unknown.
+
+A bug was found by reading the merged manifest: the Phase 3 declaration `ACCESS_FINE_LOCATION maxSdkVersion="30"` won the manifest merge
+and removed the permission for Android 12 and later, so navigation could not have started there. It is declared on every version now,
+and a test guards it.
+
+### 7.4 Build and configuration
+
+```bash
+cd android
+./gradlew :navsdk:testDebugUnitTest                      # the conversion tests
+./gradlew :app:lintDebug :app:assembleDebug              # build and lint everything
+```
+
+The API key is a secret and is **never committed**. Put it in `android/secrets.properties` (git-ignored) as `MAPS_API_KEY=...`, or set the
+environment variable `MAPS_API_KEY`. Without either, the build still works with a placeholder (`DEFAULT_API_KEY`) and the SDK will refuse
+to start with "refused the API key", which the screen reports. A test fails if a Google API key appears anywhere in the repository.
+
+The debug APK is about 65 MB (it was under 1 MB before the SDK), because the SDK carries native libraries and many dependencies.
+
+### 7.5 Before you run the tests N1 to N7
+
+You need all of these, and only you can arrange them:
+
+- A **Google Cloud project** with the **Navigation SDK** enabled and an API key. Restrict the key to this app (Google's page on API
+  keys describes application restrictions; this was not tested here).
+- **Billing turned on.** The Navigation SDK is billed per destination (ARCHITECTURE.md section 2). Read Google's pricing page first. Every
+  route you start in N2 to N6 can count as a billable destination, simulated or not (not verified: check the usage page after N2).
+- Acceptance of **Google's Navigation terms of use** on the phone (the SDK shows the dialog).
+- An Android phone with location turned on. (Whether the SDK needs Google Play services on the phone was not checked; the SDK bundles its own copy of the map classes it uses and declares no Play services dependency.)
+- For N3: a MotoNav board and the Phase 2/3 tests **B1, B2 and P3** passed, so the Bluetooth chain is already known to work.
+
+### 7.6 The tests
+
+#### N1. Start the Navigation SDK
+
+Put the key in place (7.4), build, install. Tap **1. Start the Navigation SDK**. Expected: Android asks for location permission; then
+Google's terms dialog appears; after you accept, the log says `starting the Navigation SDK` then `Navigation SDK ready`.
+Failure messages tell you why: `refused the API key`, `the Navigation terms of use were not accepted`, `network error`, `location permission is missing`.
+
+Pass: it reaches "Navigation SDK ready". Also try once without the key to see the "refused the API key" message.
+
+| Date | Tester | Phone, Android version | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### N2. A simulated route, no board
+
+Enter a **destination** (latitude and longitude, for example somewhere you know) and, optionally, a **start** so no GPS fix is needed.
+Leave **Simulated drive** ticked. Tap **2. Start the route**. Expected log: `asking Google for a two-wheeler route`, then
+`turn-by-turn feed registered`, then `guidance started (simulated drive, 5x speed)`. The line **Navigation feed: received N, sent to the
+device N, ignored N, unreadable N** should count up about once a second. `unreadable` should stay 0.
+
+Pass: the route is accepted, the feed counter rises roughly once a second, `ignored` stays low. **Write down** how many messages arrive in one
+minute, and whether `ignored` is ever above 0. If you see `no route: ...`, the text says why (for example `LOCATION_UNKNOWN` without a start).
+
+| Date | Tester | Phone, Android version | Messages in 1 minute | Result | Notes |
+|---|---|---|---|---|---|
+| | | | | **NOT RUN** | |
+
+#### N3. Phone to board, end to end
+
+Connect to the board (P3), then do N2. Watch the display and the board's serial log (`pio device monitor | tee n.log`). Expected: the board prints
+`ble: accepted seq N -> expect: ...` about once a second; the display shows the maneuver icon, the distance (counting down), and the road name;
+the icon changes at each turn of the route; at the end the **Arrived** screen appears; **Stop the route** brings back **Ready**.
+
+Pass: the display agrees with the route you know (icons plausible, distances falling), no board reset, no rejected messages, Arrived at the end.
+Roads in non-Latin script will show no road name (known limitation).
+
+| Date | Tester | Route (length, region) | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### N4. U-turn direction
+
+On a route with a U-turn, check the icon points the way the real turn goes. In right-hand traffic a U-turn is to the left; in left-hand traffic to
+the right. The mapping follows Google's wording (clockwise is the right-hand icon) and is **unverified on a real road**. Record region,
+Google's constant if you can see it (the board shows only the icon), and whether the icon was right.
+
+| Date | Tester | Region and traffic side | Icon correct? | Result | Notes |
+|---|---|---|---|---|---|
+| | | | | **NOT RUN** | |
+
+#### N5. Screen off
+
+Run N3. Switch the phone's screen off (or put the app in the background) for **five minutes**, then look at the display and the app. This is a
+question, not a pass or fail: does the feed keep arriving, and does the Bluetooth link stay up? This is the highest-value unknown of the project
+(DEVELOPMENT_PLAN.md risk 6). Record exactly what happens, and the phone maker and Android version (battery saving rules differ).
+
+| Date | Tester | Phone maker, model, Android | Feed continued? | Link stayed up? | Notes |
+|---|---|---|---|---|---|
+| | | | | | **NOT RUN** |
+
+#### N6. A real ride (only after N3 and N5)
+
+A short, known route with real GPS (untick Simulated drive). **Safety:** fit the display and the phone before moving; do not touch the phone while riding; have a
+passenger or stop to read results. Record anything odd: late turns, wrong icons, freezes, the display after a tunnel or a GPS loss.
+
+| Date | Tester | Route | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### N7. Cost check
+
+After N2 to N6, open the Google Cloud usage and billing pages and write down how many destinations were billed. This tells you what testing costs.
+
+| Date | Tester | Routes started | Destinations billed | Cost | Notes |
+|---|---|---|---|---|---|
+| | | | | | **NOT RUN** |
+
+**Evidence to send:** `n.log`; screenshots of the app after N1, N2 and N5; photos of the display for N3; the Google Cloud usage page for N7; phone maker, model and Android version.
+
+### 7.7 Known limitations of Phase 4a
+
+- **The Google parts have never run** (7.1). Everything about real feed behaviour is documentation, not observation.
+- **Needs a Google key, billing and terms.** Per-destination billing; commercial-terms questions are still open (DEVELOPMENT_PLAN.md section A), including whether a
+  separate hardware display needs Google Maps attribution.
+- **Arrival depends on the SDK's arrival event** being delivered. If it is not, the device goes from the last turn to Ready (when STOPPED arrives) without the Arrived screen.
+  Only one destination is supported; waypoints are not.
+- **The feed and the link live and die with the test screen**: no background operation, no automatic reconnection (Phase 5). N5 measures what actually happens.
+- **The SDK adds broad permissions** to the app, including background location, notifications and storage. They will matter for Google Play review. The SDK may also store
+  data of its own; D-05 (no road names stored) is checked for our code, not for the SDK's internals.
+- **Indian-script road names are not shown** (D-20).
+- **Remaining distance and time** are sent but not displayed (D-21).
+- **Whether the SDK needs Google Play services on the phone** at run time was not checked.
+- **Version combination:** see 7.3. The app, SDK and Android Gradle Plugin versions are newer than Google's documented table.

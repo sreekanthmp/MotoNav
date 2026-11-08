@@ -1,13 +1,17 @@
 # Architecture
 
-**Status after Phase 3:** the firmware layers in sections 3 and 4 (model,
+**Status after Phase 4a:** the firmware layers in sections 3 and 4 (model,
 rendering, simulation) are **Implemented and host-tested**. The firmware side of
 the Bluetooth link (frame codec, receiver, section 1) is **Implemented and
 host-tested**; the Bluetooth radio code is **compile-checked only** and has never
 run over a real link. The phone side is a test sender: its protocol code and
 connection logic are **Implemented and host-tested**, its Bluetooth adapter and
-screen are **compile-checked only** and have never run on a phone. The navigation
-side (Google Navigation SDK, Phases 4-5) is still **Proposed**. Facts marked
+screen are **compile-checked only** and have never run on a phone. The
+conversion of Google's turn-by-turn feed into our messages (section 1, "Google
+navigation source") is **Implemented and host-tested**; the SDK glue around it (the
+service the SDK feeds and the route controller) is **compile-checked only**, and
+**no part of the Google SDK has ever run**: there is no key and no phone. Reliability
+(reconnection, stale data, running with the screen off: Phase 5) is still **Proposed**. Facts marked
 **Verified** were read directly from Google's documentation on 2026-11-08 (the
 pages were last updated 2026-11-03). Everything else is a proposal or an
 assumption.
@@ -44,6 +48,34 @@ reads GPS, and never needs the internet.
 No further layers are proposed. In particular: no dependency-injection
 framework, no plugin system, no message bus.
 
+### Google navigation source (Phase 4a: conversion host-tested, SDK glue compile-checked only, never run)
+
+```
+ Google Navigation SDK  ---- feed, about once a second, through a Messenger ---->  NavUpdatesService
+   ^                                                                                    |
+   | setDestinations (two-wheeler), simulator, arrival event                            v
+ NavigationController                     NavFeed ---> NavInfoConverter ---> NavUpdate (our own type)
+                                          (hand-off)   ManeuverMap: 66 Google maneuvers -> 11 icons
+                                                       |
+                                                       v   LinkSession.submit() (below)
+```
+
+- All of this is in one module, `:navsdk`. It is the only code that imports Google types (a test checks
+  that), because the SDK's data classes are labelled beta (D-13). Everything below it works on our own `NavUpdate`.
+- The **conversion is pure and tested** with the SDK's own `NavInfo` and `StepInfo` objects: ENROUTE becomes
+  Navigating, REROUTING becomes Rerouting, STOPPED ("navigation has ended") becomes Ready so no old turn lingers; a
+  missing or negative number is "unknown", never 0; an ENROUTE message with no step, or an unknown state, is ignored
+  rather than guessed. Seventeen reviewed cases are sent through the firmware's real receiver on a computer.
+- **Arrival comes from the SDK's `ArrivalListener`** (a real event, read from the SDK), not from guessing with
+  distances. The controller reports it to the converter, and the device is told "Arrived" until a new route starts.
+- The **maneuver table lists all 66 Google constants explicitly.** A test reads them from the SDK and fails if one is
+  missing, so an SDK update that adds a maneuver is noticed.
+- The feed is asked for no preview steps and no step images (the SDK's guide example asks for bitmaps).
+- `NavFeed` is a process-wide hand-off, because the SDK creates the receiving service itself. Phase 5 replaces it with a
+  service that owns the link.
+- **Never run.** The SDK was downloaded, compiled against and its class files read. No request has gone to Google.
+  Real feed behaviour (rate, content, arrival, the screen off) is unverified until tests N1 to N7 (TESTING.md section 7).
+
 ### Android sender (Phase 3: logic host-tested, Bluetooth adapter compile-checked only)
 
 ```
@@ -66,10 +98,10 @@ framework, no plugin system, no message bus.
   against the shared files `protocol/vectors.txt` and `protocol/scenarios.txt`, so any disagreement
   between the three is caught by tests.
 - Road names stay in memory only: no system log, files, preferences or database (D-05), checked by a
-  test on the sources. In Phase 4 the Google types will be confined to one place (D-13) that converts
-  the SDK's data into a `NavUpdate`; nothing below that line knows about Google.
-- Not in Phase 3: the Google Navigation SDK, automatic reconnection, running with the screen off
-  (a foreground service), and any real UI. Those are Phases 4 and 5.
+  test on the sources. The Google types are confined to `:navsdk` (D-13), which converts the SDK's data
+  into a `NavUpdate`; nothing below that line knows about Google.
+- Not yet: automatic reconnection, running with the screen off (a foreground service), and any real
+  UI. Those are Phase 5.
 
 ### Bluetooth receive path (Phase 2: Implemented, radio code compile-checked only)
 
@@ -276,9 +308,12 @@ section 5, where the maneuver numbers 0 to 10 are the values of the firmware's e
    single `U_TURN` in the original brief. In left-hand traffic the same road
    situation is mirrored, so one icon would be wrong in one of the two cases.
    **This deviates from the brief's maneuver list and needs your approval.**
-   Which Google constant maps to left versus right in each driving side must be
-   verified on a real route in Phase 4. Google's own text on this is
-   inconsistent (see the notes above).
+   The mapping (Phase 4a): Google describes `TURN_U_TURN_CLOCKWISE` as a "clockwise turn onto
+   the opposite side of the street" and chooses clockwise or counterclockwise from the
+   country's driving side. A clockwise turn is a right-hand turn, so **clockwise is the right
+   icon and counterclockwise the left one.** This follows Google's wording; it is
+   **unverified on a real road** (test N4). Google's guide has a typo on the same point
+   ("whereas right-side-of-the-road countries go clockwise"), which is the inconsistency noted in Phase 0.
 3. "Keep left/right" and "fork" are shown as the slight-turn arrows. There are
    no separate icons for them. **A design choice, open to change.**
 
@@ -294,10 +329,12 @@ MotoNav/
 ├── README.md  ARCHITECTURE.md  HARDWARE.md  DEVELOPMENT_PLAN.md  DECISIONS.md  TESTING.md
 ├── BLUETOOTH_PROTOCOL.md         Phase 2: the phone-to-device protocol, version 1
 ├── protocol/                     Phase 2: frame_tool.py (independent Python implementation),
-│                                 vectors.txt and scenarios.txt (shared test files, both generated)
+│                                 vectors.txt and scenarios.txt (shared test files, both generated),
+│                                 navinfo_cases.txt (Phase 4a: Google feed cases, frames + reviewed screen text)
 ├── android/                      Phase 3: Gradle project (Gradle 9.6.0, AGP 9.5.1, Kotlin 2.2.10)
 │   ├── protocol/                 pure Kotlin: model, frame codec, STATUS parser, simulated messages
 │   ├── link/                     pure Kotlin: the connection state machine and the GattPort interface
+│   ├── navsdk/                   Phase 4a: the only code that uses Google's Navigation SDK (feed conversion, service, controller)
 │   └── app/                      Android: BluetoothGatt adapter, scanner, one test screen
 └── firmware/
     ├── platformio.ini            envs: motonav (default), motonav_ble, hw_check, oled_check; provisional hardware values
@@ -327,7 +364,7 @@ MotoNav/
         ├── hw_check_sim.cpp  oled_check_sim.cpp  stats_sample.cpp   run the real tools / make synthetic logs
         ├── frame_check.cpp  ble_script.cpp   run the real frame decoder / receiver on hex input (cross-check, test messages)
         ├── analyze_log.py        judges a long-run serial log (T5, T6)
-        ├── tests_py/             93 Python tests
+        ├── tests_py/             105 Python tests (incl. test_navinfo_cases.py, test_android_policy.py)
         └── golden/screens.txt    regression hashes of every screen at 128x64 and 128x32
 
 docs/reference/                   generated images and expected outputs used by TESTING.md

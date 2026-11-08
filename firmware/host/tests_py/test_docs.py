@@ -152,6 +152,49 @@ class Phase3Documents(unittest.TestCase):
         self.assertIn("never run on a phone", " ".join(readme.split()))
 
 
+class Phase4aDocuments(unittest.TestCase):
+    """Section 7 of TESTING.md: the Google Navigation SDK. None of the Google parts has ever run."""
+
+    def section7(self):
+        return DOC[DOC.index("## 7. Phase 4a"):]
+
+    def cases(self):
+        out = []
+        for line in (REPO / "protocol" / "navinfo_cases.txt").read_text(encoding="utf-8").splitlines():
+            if line and not line.startswith("#"):
+                name, _frame, text = [p.strip() for p in line.split(" ; ", 2)]
+                out.append((name, text))
+        return out
+
+    def test_the_case_table_is_the_golden_file(self):
+        section = self.section7()
+        cases = self.cases()
+        self.assertGreaterEqual(len(cases), 15)
+        for name, text in cases:
+            self.assertIn("| `%s` | `%s` |" % (name, text), section, name)
+
+    def test_every_google_device_test_is_not_run(self):
+        section = self.section7()
+        self.assertGreaterEqual(section.count("**NOT RUN**"), 2 + 7)      # two status rows + one per N test
+        self.assertNotRegex(section, r"\*\*(PASS|PASSED|FAIL|FAILED)\*\*\s*\|\s*\n")
+        for n in ("N1", "N2", "N3", "N4", "N5", "N6", "N7"):
+            self.assertIn("#### %s." % n, section)
+        row = [l for l in DOC.splitlines() if l.startswith("| **N1** to **N7**")]
+        self.assertEqual(len(row), 1)
+        self.assertIn("NOT RUN", row[0])
+
+    def test_the_documents_say_the_google_parts_have_never_run(self):
+        self.assertIn("never run", " ".join(self.section7().split()))
+        for name in ("README.md", "ARCHITECTURE.md", "DEVELOPMENT_PLAN.md"):
+            text = " ".join((REPO / name).read_text().split())
+            self.assertIn("never run", text, name)
+        self.assertIn("no key", " ".join((REPO / "README.md").read_text().split()))
+
+    def test_the_documents_never_contain_an_api_key_or_a_claim_that_billing_was_checked(self):
+        self.assertNotRegex(DOC, r"AIza[0-9A-Za-z_\-]{35}")
+        self.assertIn("not verified", " ".join(self.section7().split()))      # the billing statement is hedged
+
+
 class NoHardwareTestIsMarkedPassedWithoutEvidence(unittest.TestCase):
     def hardware_section(self):
         return DOC[DOC.index("## 3. Physical hardware validation"):DOC.index("## 4. Known limitations")]
