@@ -3,6 +3,14 @@ firmware/.pio/
 firmware/host/build/
 firmware/host/out/
 
+# Android / Gradle build outputs
+android/.gradle/
+android/**/build/
+android/local.properties
+android/.kotlin/
+*.iml
+.idea/
+
 # Editors / OS
 .vscode/
 .DS_Store

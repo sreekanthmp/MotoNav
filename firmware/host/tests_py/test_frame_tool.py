@@ -43,6 +43,40 @@ def python_decode_line(frame):
         d["road"].decode("latin-1"))
 
 
+SCENARIOS = REPO / "protocol" / "scenarios.txt"
+
+
+class ScenarioFile(unittest.TestCase):
+    """protocol/scenarios.txt is what the Android app's simulated messages are checked against."""
+
+    def lines(self):
+        out = []
+        for line in SCENARIOS.read_text(encoding="ascii").splitlines():
+            if line and not line.startswith("#"):
+                name, hexframe = [p.strip() for p in line.split(" ; ")]
+                out.append((name, T.parse_hex(hexframe)))
+        return out
+
+    def test_committed_file_is_what_the_tool_generates(self):
+        self.assertEqual(SCENARIOS.read_text(encoding="utf-8"), T.scenario_file_text(),
+                         "regenerate with: python protocol/frame_tool.py scenario-file --write protocol/scenarios.txt")
+
+    def test_twelve_valid_messages_then_five_that_must_be_rejected(self):
+        entries = self.lines()
+        self.assertEqual([n.startswith("BAD_") for n, _ in entries], [False] * 12 + [True] * 5)
+
+    def test_the_valid_messages_decode_with_rising_sequence_numbers(self):
+        for index, (name, frame) in enumerate(self.lines()[:12]):
+            self.assertEqual(T.decode(frame)["seq"], index + 1, name)
+
+    def test_every_bad_message_is_rejected_by_the_reference_decoder_and_by_the_firmware(self):
+        bad = [(n, f) for n, f in self.lines() if n.startswith("BAD_")]
+        cpp = cpp_decode([f for _, f in bad])
+        for (name, frame), line in zip(bad, cpp):
+            self.assertNotEqual(python_decode_line(frame), "OK", name)
+            self.assertEqual(python_decode_line(frame), line, name)
+
+
 class VectorFile(unittest.TestCase):
     def test_committed_vectors_are_what_the_tool_generates(self):
         self.assertEqual(VECTORS.read_text(encoding="utf-8"), T.vectors_text(),
