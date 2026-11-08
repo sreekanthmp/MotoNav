@@ -20,17 +20,17 @@ board; nothing is device-tested yet), **Compile-checked**.
 | D-08 | Device display uses Adafruit GFX + SSD1306. **Refined in Phase 1:** screens do not call Adafruit GFX directly. They draw through an eight-method `Canvas` interface, and `Ssd1306Canvas` adapts it. Reason: the host tests need a drawing target that builds without Arduino, and a round AMOLED later needs only a new adapter. | Implemented. Interface host-tested. SSD1306 adapter compile-checked for the classic ESP32. Not device-tested. |
 | D-09 | Arrow and icon graphics are vector-drawn, not stored bitmaps. | Implemented, host-tested |
 | D-10 | `DeviceState` is the only thing screens read; `ScreenView` is what is visible; screens know nothing of BLE. | Implemented, host-tested |
-| D-11 | BLE stack on the ESP32: NimBLE. | Proposed (to validate in Phase 2) |
+| D-11 | BLE stack on the ESP32: NimBLE, specifically `h2zero/NimBLE-Arduino` **2.5.2**, pinned in `platformio.ini`. It was compile-checked on the pinned Arduino core (881,160 B flash, 67.2 %, 0 warnings). | Decided. Compile-checked. **Not device-tested.** |
 | D-12 | Android BLE uses the platform APIs directly, no wrapper library. | Proposed (revisit in Phase 3 if it proves painful) |
 | D-13 | Google types are confined to one Android file/module because the APIs are beta. | Proposed |
-| D-14 | Message encoding: compact binary versus JSON. | Open (Phase 2) |
-| D-15 | Where ETA is computed. The SDK provides remaining seconds, not a clock time, and the ESP32 has no clock. Leaning towards phone-computed. | Open (Phase 2) |
-| D-16 | `BLUETOOTH_PROTOCOL.md` is created when Phase 2 starts; `TESTING.md` was created in Phase 1. | Implemented for `TESTING.md` |
+| D-14 | Message encoding: **compact binary**, little-endian, with a CRC-16 (see D-33). A NAV_UPDATE is at most 53 bytes, so it fits one write at the negotiated MTU. JSON would be several times larger and needs a parser on the ESP32 for no benefit. | Decided, implemented, host-tested |
+| D-15 | Where ETA is computed: **on the phone**. The SDK provides remaining seconds, not a clock time, and the ESP32 has no clock. The protocol carries remaining seconds; if an ETA clock time is ever shown, the phone sends it. | Decided. The field is carried and host-tested; not displayed. |
+| D-16 | `BLUETOOTH_PROTOCOL.md` is created when Phase 2 starts; `TESTING.md` was created in Phase 1. | Implemented (both) |
 | D-17 | The model has `UTurnLeft` and `UTurnRight`, not the single `U_TURN` of the original brief. Google distinguishes clockwise and counterclockwise U-turns and they mirror between left- and right-hand traffic. | **Needs your approval** (deviates from the brief). Implemented. |
 | D-18 | Host tests use a plain Makefile and a 60-line test harness, not PlatformIO's `native` test environment. Reason: it needs only a C++ compiler, with no package downloads. | Implemented |
 | D-19 | No default pins, I2C address or display size anywhere in the C++ code. The build fails until `platformio.ini` supplies them. `platformio.ini` now supplies the **provisional** values for the identified hardware. | Implemented (your guideline 6) |
 | D-20 | Non-ASCII road names are shown as one `?` per run, and a name with no letters or digits left is hidden. The 5x7 font has ASCII only. **Limitation:** road names in Indian scripts are not readable on this display. Revisit with the production display and font. | Implemented, host-tested |
-| D-21 | Remaining distance and ETA are not in the Phase 1 model. They are added with the protocol in Phase 2. | Implemented |
+| D-21 | Remaining distance and ETA are not in the Phase 1 model. They were added with the protocol in Phase 2, as `NavExtras` beside the snapshot, and are **not displayed**. Carried now because adding a field later needs a new protocol version; can be dropped before Phase 3 if you prefer. | Implemented, host-tested. **Open to change.** |
 | D-22 | Distance text: under 100 m in 10 m steps, up to 974 m in 50 m steps, then km with one decimal, whole km from 9.95 km, capped at 999 km. The number and unit are separate so the number is drawn large. | Implemented, host-tested |
 | D-23 | Phase 1 only supports I2C displays. | Implemented. The listing says I2C; SPI is not planned unless validation shows otherwise. |
 | D-24 | The firmware targets the **classic ESP32** via PlatformIO board `esp32doit-devkit-v1` (DOIT DevKit V1, the 30-pin layout), not `nodemcu-32s`, which is a different board. A compile-time guard refuses any other chip. The pins match the board's Arduino defaults (SDA 21, SCL 22). | Implemented, compile-checked. **Provisional** until `hw_check` confirms the chip on the real board. |
@@ -41,6 +41,16 @@ board; nothing is device-tested yet), **Compile-checked**.
 | D-29 | The firmware's log lines (boot, reset reason, once-a-minute stats, render checks) are formatted in one place (`diag/log_format.*`), and a Python analyser (`firmware/host/analyze_log.py`) judges a long run against fixed criteria. Tests build logs with the real formatters, so the two cannot drift apart. | Implemented, host-tested |
 | D-30 | Serial commands `d` (next test distance) and `r` (next test road name) were added to hold-mode, and the firmware prints an `expect:` line describing exactly what the display should show, so every formatting rule can be inspected on the real display. | Implemented, host-tested |
 | D-31 | Static screens (Disconnected, Ready, Rerouting, Arrived) are hashed in the RAM frame buffer each time they are drawn, and any change from the first hash is logged. It detects memory corruption or changed drawing code. It **cannot** detect I2C glitches that corrupt what the glass shows. | Implemented, host-tested logic. Not run on hardware. |
+| D-32 | **Phase 2 is a separate PlatformIO environment, `motonav_ble`; the Phase 1 environment `motonav` is unchanged.** Reason: the physical validation T1-T6 tests `motonav`, and a Phase 2 change to it would invalidate that work. `motonav` excludes the new files in `build_src_filter`. Cost: about 100 lines of start-up code are duplicated between `main.cpp` and `main_ble.cpp` (the shared parts are in `device_common.h`). Merge them after Phase 1 passes. | Implemented. Compile-checked. |
+| D-33 | **Frame format** (version, type, sequence, length, payload, CRC-16/CCITT-FALSE): the BLE link layer has its own CRC but cannot catch a write that was cut short by a small MTU, a bug in the phone app, or a wrong-version peer. A 2-byte application CRC, version and length check make every one of those a clean rejection, and make the codec exhaustively testable. Maximum frame 64 bytes. | Implemented, host-tested |
+| D-34 | **A frame that is not fully valid never changes any state** (CRC is checked before the contents are interpreted; the checks have a fixed, documented order). Enforced by tests, including fuzzing. | Implemented, host-tested |
+| D-35 | **Sequence rules.** One counter per connection. Modulo-256 arithmetic: the same number is a duplicate (ignored); 1 to 127 ahead is accepted (lost frames are fine); 128 to 255 ahead is stale (rejected); the **third** stale frame in a row is accepted as a resync. The resync exists because a phone app that restarts its counter without reconnecting would otherwise be ignored for up to 128 frames. That scenario is an **assumption** about the future Android app, not an observed behaviour. | Implemented, host-tested |
+| D-36 | **One connection at a time** (`CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1`, checked at compile time). Two phones writing would fight over the display. | Implemented, compile-checked |
+| D-37 | **No pairing, bonding or encryption in Phase 2.** Anyone in range can connect and write navigation data. This is accepted for a prototype and recorded as a **security debt that must be paid before any commercial release** (BLUETOOTH_PROTOCOL.md section 11). | Decided (deferred) |
+| D-38 | The phone must negotiate an **ATT MTU of at least 56** (53 plus 3 bytes overhead). The firmware requests 247 and logs the negotiated value, with a warning if it is too small. A cut-off frame is rejected safely. Writes with response are recommended; writes without response are accepted. | Implemented. Radio behaviour **not device-tested.** |
+| D-39 | **The protocol has two independent implementations from day one:** the firmware's C++ and a Python reference (`protocol/frame_tool.py`), checked against shared vectors (`protocol/vectors.txt`) and against each other on random frames. The Android app must pass the same vectors. Reason: a protocol written and tested by only one implementation can agree with itself and still be wrong. | Implemented, host-tested |
+| D-40 | **Proving Phase 1 is unchanged.** A file hash cannot, because an ESP32 image embeds its build time. Instead the current `motonav` image is compared byte by byte with an image built from the Phase 1 baseline commit `3eba30f`: 66 of 384,496 bytes differ, all in the ELF hash, the build-time string and the trailing checksum. | Done once, documented in TESTING.md section 5.3. Not automated. |
+| D-41 | **Phase 2 was prepared before the Phase 1 hardware validation**, at the project owner's request to move forward ("we can test this in real hardware, but not now"). The B tests are gated on T1 to T4 passing, because a Bluetooth test on an unverified board proves nothing. | Decided |
 
 ## Rationale for the proposed items
 
@@ -60,9 +70,10 @@ AMOLED's driver library exposes a compatible API. If not, only the thin
 drawing adapter changes.
 
 **D-11 NimBLE.** Smaller RAM and flash footprint than the default Bluedroid BLE
-stack in Arduino-ESP32, and it supports the BLE-only chips. This is a general
-recommendation and is **not yet validated** against the identified board and
-pinned core version.
+stack in Arduino-ESP32, and it supports the BLE-only chips. Phase 2 confirmed that
+NimBLE-Arduino 2.5.2 **compiles** on the pinned core for the identified board target. How it
+behaves on the real board (advertising, connecting, MTU, reconnecting, memory use) is **not
+validated**: that is what tests B1 to B7 are for.
 
 **D-13 Isolating Google types.** `Maneuver`, `NavInfo`, `StepInfo` and
 `NavState` are labelled beta / preview in Google's reference with no

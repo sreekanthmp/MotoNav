@@ -177,6 +177,8 @@ and all pixels off.
 
 ## 6. Later phases (not started)
 
+Phase 2 (Bluetooth) needs no extra hardware: the ESP32's own radio and a phone or a generic BLE app are enough. Its device tests are in [TESTING.md](TESTING.md) section 5 and should wait until T1 to T4 have passed.
+
 Circular AMOLED, production microcontroller, custom PCB, motorcycle power input and
 protection, weather resistance, vibration resistance, handlebar mounting and
 manufacturing are Phase 6 topics. They are deliberately not specified yet.

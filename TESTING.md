@@ -11,21 +11,22 @@ Every result in this document carries one of three labels, and they are never mi
   has not marked any hardware test as passed. Every hardware result below says
   `NOT RUN` until the board owner fills it in with real evidence.
 
-Last updated: preparation for the physical hardware validation (2026-11-08).
+Last updated: Phase 2 (Bluetooth LE) prepared; Phase 1 hardware validation still pending (2026-11-08).
 
 ## 0. Status at a glance
 
 | Area | Label | Status |
 |---|---|---|
-| Firmware logic: model, screens, simulation, diagnostics verdicts (53 C++ tests) | Host-tested | pass |
-| Log analyser, `hw_check` and `oled_check` simulations, documentation checks (56 Python tests) | Host-tested | pass |
-| Firmware and both diagnostics build with the real ESP32 toolchain | Compile-checked | pass, 0 warnings |
+| Firmware logic: model, screens, simulation, diagnostics verdicts, Bluetooth frame codec and receiver (77 C++ tests) | Host-tested | pass |
+| Log analyser, `hw_check` and `oled_check` simulations, Bluetooth reference tool, documentation checks (76 Python tests) | Host-tested | pass |
+| Firmware (`motonav`), both diagnostics and the Phase 2 firmware (`motonav_ble`) build with the real ESP32 toolchain | Compile-checked | pass, 0 warnings |
 | **T1** ESP32 identification | Device-tested | **NOT RUN** |
 | **T2** I2C detection | Device-tested | **NOT RUN** |
 | **T3** OLED controller validation | Device-tested | **NOT RUN** |
 | **T4** Main firmware validation | Device-tested | **NOT RUN** |
 | **T5** 30-minute continuous operation | Device-tested | **NOT RUN** |
 | **T6** 12-hour soak (extended reliability test) | Device-tested | **NOT RUN** |
+| **B1** to **B7** Bluetooth LE (Phase 2, [section 5](#5-phase-2-bluetooth-le-prepared-nothing-has-run-over-a-real-bluetooth-link)) | Device-tested | **NOT RUN** |
 
 ## 1. Host tests
 
@@ -33,8 +34,8 @@ Run from `firmware/host`. They need a C++ compiler and `make`; the Python ones a
 Python 3.
 
 ```bash
-make test                            # layering check + 53 C++ tests (gcc, ASan + UBSan, -Werror)
-make test-tools                      # builds the simulators, then 56 Python tests
+make test                            # layering check + 77 C++ tests (gcc, ASan + UBSan, -Werror)
+make test-tools                      # builds the simulators, then 76 Python tests
 make -B test CXX=clang++ SANITIZE=   # second compiler, no sanitizers
 make render                          # screen images in out/ (needs Pillow for the contact sheets)
 make reference                       # regenerates docs/reference/ (images and expected outputs)
@@ -45,9 +46,9 @@ make golden-update                   # accept a deliberate rendering change (loo
 
 | Run | Result |
 |---|---|
-| gcc 13.3, `-std=c++11 -Wall -Wextra -Wpedantic -Werror`, AddressSanitizer + UBSan: `make test` | **53 tests, 39,148 checks, 0 failed** |
-| clang 18.1, same warnings, no sanitizers: `make test` | **53 tests, 39,148 checks, 0 failed**; golden hashes identical to gcc |
-| gcc with sanitizers: `make test-tools` | **56 Python tests, OK** |
+| gcc 13.3, `-std=c++11 -Wall -Wextra -Wpedantic -Werror`, AddressSanitizer + UBSan: `make test` | **77 tests, 339,828 checks, 0 failed** |
+| clang 18.1, same warnings, no sanitizers: `make test` | **77 tests, 339,828 checks, 0 failed**; golden hashes identical to gcc |
+| gcc with sanitizers: `make test-tools` | **76 Python tests, OK** |
 | Layering check (`check_layering.sh`) | ok |
 
 clang could not be run with sanitizers: this sandbox's clang has no AddressSanitizer
@@ -70,6 +71,7 @@ while these tests were written: a use-after-scope in a *test*, fixed.)
 | **Log analyser** | a clean 30-minute and 12-hour log pass; each of a leak, slow leak, fragmentation, reboot, brown-out, crash, firmware stall, frozen display, slow display updates, render mismatch, low stack, display init failure, too-short run, missing banner is detected; heap jitter is not mistaken for a leak |
 | **Documentation** | this document cannot silently go stale: a test fails if any expected-output line shown here no longer matches what the code prints, or if any hardware test is recorded as passed |
 | Architecture | `check_layering.sh` fails if `core/`, `sim/`, `ui/` or `diag/` include Arduino, Wire, a display driver or a radio header |
+| **Bluetooth protocol (Phase 2)** | frame codec, receiver and the path from bytes to the display, fuzzed and cross-checked against an independent Python implementation: see [section 5.2](#52-what-the-host-tests-cover-host-tested) |
 
 ### Do the tests actually catch bugs? (Host-tested)
 
@@ -820,4 +822,351 @@ T4.3 photos at the end. The 12-hour run is far more sensitive to small leaks, so
 - Only the 128x64 layout is the target. The 128x32 layout is host-tested only.
 - Non-ASCII road names (for example Indian scripts) cannot be shown by the 5x7 font. They are
   replaced by `?` or hidden (T4.6 shows both).
-- BLE and the Android app do not exist yet and are not tested.
+- The Android app does not exist yet. The Bluetooth firmware (Phase 2) exists but has never run over a real link; its limitations are in section 5.5.
+
+## 5. Phase 2: Bluetooth LE (prepared; **nothing has run over a real Bluetooth link**)
+
+Phase 2 adds a **separate** firmware environment, `motonav_ble`, that shows navigation messages
+received over Bluetooth LE. The protocol is specified in [BLUETOOTH_PROTOCOL.md](BLUETOOTH_PROTOCOL.md).
+The Phase 1 environment `motonav`, which T1 to T6 test, is unchanged (section 5.3).
+
+This section was written while the Phase 1 hardware validation was still pending, at the project
+owner's request to move forward. **The B tests below must not be run until T1 to T4 have passed**:
+a Bluetooth test on a board whose display or chip is unverified would prove nothing.
+
+### 5.1 Status at a glance
+
+| Area | Label | Status |
+|---|---|---|
+| Frame codec: format, CRC, validation order, every error class | Host-tested | pass |
+| Receiver: sequence rules, duplicates, stale frames, resync, reset, counters, STATUS bytes | Host-tested | pass |
+| From received bytes to what the display shows | Host-tested | pass |
+| Python reference and the firmware's C++ codec agree (45 shared vectors, 3,000 random frames, the hand-test messages below) | Host-tested | pass |
+| `motonav_ble` builds on the real ESP32 toolchain | Compile-checked | pass: 881,160 B of 1,310,720 B flash (67.2 %), 38,228 B static RAM, 0 warnings |
+| The Phase 1 firmware (`motonav`) is unchanged by Phase 2 | Compile-checked (byte comparison, 5.3) | pass |
+| NimBLE radio code: advertising, connecting, MTU, write callbacks, notifications, reconnecting | Device-tested | **NOT RUN** |
+| **B1** discovery, **B2** connect and MTU, **B3** valid messages, **B4** invalid messages, **B5** disconnect and reconnect, **B6** sequence rules, **B7** stability | Device-tested | **NOT RUN** |
+
+### 5.2 What the host tests cover (Host-tested)
+
+| Area | Tests |
+|---|---|
+| CRC | the published check value of CRC-16/CCITT-FALSE (`0x29B1`), chaining |
+| Shared vectors | the firmware decodes all 45 vectors made by the independent Python implementation exactly as stated, and its encoder reproduces the 23 valid ones **byte for byte** |
+| Codec properties | round trip for every mode and maneuver; every single-bit flip of a valid frame is detected; every truncation and extension is rejected; validation happens in the documented order |
+| Fuzzing | 300,000 random buffers (nothing crashes or reads out of bounds under AddressSanitizer); 200,000 structured frames with a correct CRC checked against an independent oracle, and every accepted frame re-encodes to the same bytes |
+| Receiver | accepts valid frames and updates state; **a rejected, stale or duplicate frame never changes the state** (also fuzzed); sequence wrap at 255 to 0; the 127 / 128 boundary; resync after three stale frames; reset on connect and disconnect; dropped-frame counting; the STATUS bytes |
+| Bytes to display | a frame makes the display show exactly the `expect:` text listed below; invalid frames do not change it; Disconnected beats leftover data; Ready after a reset; an accented road name becomes `?` |
+| Python and C++ agree | the same verdict and the same fields on 45 vectors, on the hand-test messages, and on 3,000 random frames |
+
+Bugs were injected one at a time and each was detected (the code was restored and verified
+identical afterwards): wrong CRC polynomial, sequence boundary off by one, a NUL byte accepted in a
+road name, `reset()` not clearing the counters, the length checked before the version, stale frames
+that still overwrite the state, and the Python reference writing a number big-endian.
+
+### 5.3 The Phase 1 firmware is unchanged (Compile-checked)
+
+The Phase 1 hardware tests (T1 to T6) are only meaningful if `motonav` is exactly what was
+prepared. A file hash cannot show that, because an ESP32 image contains its build time. Instead the
+current tree's `motonav` image was compared byte by byte with an image built from the Phase 1
+baseline, commit `3eba30f`, in a clean directory:
+
+- 384,496 bytes each; **66 bytes differ, all in three places**: the 32-byte ELF hash in the app
+  descriptor, the 8-character build-time string of the framework's "Software Info" banner (`20:03:16`
+  against `20:02:20`), and the image's trailing checksum and SHA-256.
+- **0 bytes differ anywhere else** (code, data, strings).
+- The new sources are excluded from `motonav` by its build filter, and no Phase 2 object is linked.
+
+To repeat it: build `motonav` from commit `3eba30f` and from the current tree and compare the two
+`firmware.bin` files, ignoring those three regions. The Phase 1 baseline commit is **`3eba30f`**.
+
+### 5.4 Before you run the B tests
+
+You need: the Phase 1 tests T1 to T4 passed; an Android phone with Bluetooth LE; and a generic BLE
+app that can scan, connect, request an MTU, read and subscribe to a characteristic, and **write a
+hex byte array**. Nordic's free *nRF Connect for Mobile* does all of these. Menu names differ
+between apps and versions, so the steps below describe what to do, not exact buttons.
+
+```bash
+cd firmware
+pio run -e motonav_ble -t upload
+pio device monitor | tee b.log          # then press EN; Windows: | Tee-Object -FilePath b.log
+```
+
+Expected boot output (the chip line shows your board's values):
+
+```text
+MotoNav firmware - Phase 2 (BLE, simulated navigation messages)
+reset: POWERON
+chip: <your chip model> rev <n>, 2 core(s), flash 4194304 bytes
+config: 128x64 display at 0x3C, SDA=21 SCL=22
+I2C scan:
+  device at 0x3C
+display: initialised
+ble: advertising as MotoNav
+```
+
+The display shows the Disconnected screen. If it says `ble: FAILED to start`, stop and send the log.
+
+The test messages come from `protocol/frame_tool.py`. Print them with:
+
+```bash
+python ../protocol/frame_tool.py scenarios --compact     # from firmware/; Linux/macOS: python3
+```
+
+The lists below are that output, with the exact serial lines and STATUS bytes the firmware's
+real receiver produces for them (generated by replaying them through it on a computer, so these
+are **predictions from tested code, not recordings from your board**). Paste each hex string as a
+**byte array** value into the NAV_DATA characteristic and send it with Write.
+
+**Order matters.** Send the messages in the order listed: each sequence number must be higher than
+the last. To start over, disconnect and reconnect (sequence numbers are per connection).
+
+#### B1. Discovery
+
+| Step | Expected |
+|---|---|
+| Scan with the phone app | a device named **MotoNav** appears within about 10 seconds, advertising service `0ce668c8-034a-476c-9c79-4ed464204496` |
+
+Pass: it appears and shows that service UUID. If it never appears: check the serial log for
+`ble: advertising as MotoNav`, that the phone's Bluetooth is on (and its location or Bluetooth-scan
+permission is granted), and that it is within a metre or two.
+
+| Date | Tester | Phone and app | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### B2. Connect, MTU and STATUS
+
+| Step | Expected serial output | Expected display |
+|---|---|---|
+| Connect from the app | `ble: connected` | **BLUETOOTH CONNECTED / READY TO NAVIGATE** |
+| Request MTU 247 and wait for it | `ble: MTU 247` (or whatever the phone grants; it must be **at least 56**, otherwise the firmware prints a warning) | unchanged |
+| Read the STATUS characteristic `664be4dd-4733-45a1-9820-496f5923a0ba` | | |
+
+Expected STATUS value right after connecting: `01 00 00 00 00 00 00 00` (version 1, nothing
+accepted or rejected yet). Subscribe to its notifications for the next tests.
+
+Pass: connects; the display changes to Ready; MTU is at least 56; the STATUS value is as above.
+
+| Date | Tester | MTU granted | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### B3. Valid messages update the display
+
+Send these in order. After each, compare the display with the `expect:` text, and check the STATUS
+notification. (Icons and layouts match the T4 reference sheets in `docs/reference/`.)
+
+```text
+ 1  ready: connected, no navigation (READY screen)
+    01010110000000FFFFFFFFFFFFFFFFFFFFFFFF000B3B
+    serial  ble: accepted seq 1 -> expect: screen=Ready
+    STATUS  01 01 00 01 01 00 00 00
+
+ 2  straight_1500: CONTINUE, 1.5 km, Main Street
+    0101021B010000DC050000E02E0000080700000B4D61696E20537472656574F324
+    serial  ble: accepted seq 2 -> expect: screen=Navigating icon=Straight distance="1.5 km" road="Main Street"
+    STATUS  01 02 00 01 02 00 00 00
+
+ 3  turn_left_450: TURN LEFT, 450 m, MG Road
+    01010317010100C2010000F82A0000A4060000074D4720526F6164AEFE
+    serial  ble: accepted seq 3 -> expect: screen=Navigating icon=TurnLeft distance="450 m" road="MG Road"
+    STATUS  01 03 00 01 03 00 00 00
+
+ 4  turn_right_90: TURN RIGHT, 90 m, MG Road
+    010104170102005A0000009029000072060000074D4720526F6164F691
+    serial  ble: accepted seq 4 -> expect: screen=Navigating icon=TurnRight distance="90 m" road="MG Road"
+    STATUS  01 04 00 01 04 00 00 00
+
+ 5  slight_left_300: SLIGHT LEFT, 300 m
+    0101051F0103002C010000FFFFFFFFFFFFFFFF0F4F757465722052696E6720526F61641F40
+    serial  ble: accepted seq 5 -> expect: screen=Navigating icon=SlightLeft distance="300 m" road="Outer Ring Road"
+    STATUS  01 05 00 01 05 00 00 00
+
+ 6  sharp_right_120: SHARP RIGHT, 120 m (the display rounds to 100 m)
+    0101062301060078000000FFFFFFFFFFFFFFFF134E6174696F6E616C20486967687761792036362546
+    serial  ble: accepted seq 6 -> expect: screen=Navigating icon=SharpRight distance="100 m" road="National Highway 66"
+    STATUS  01 06 00 01 06 00 00 00
+
+ 7  uturn_left_50: U-TURN (left), 50 m
+    0101072501070032000000FFFFFFFFFFFFFFFF155061636966696320436F6173742048696768776179F5BB
+    serial  ble: accepted seq 7 -> expect: screen=Navigating icon=UTurnLeft distance="50 m" road="Pacific Coast Highway"
+    STATUS  01 07 00 01 07 00 00 00
+
+ 8  roundabout_exit2_200: ROUNDABOUT exit 2, 200 m
+    0101081C010902C8000000FFFFFFFFFFFFFFFF0C53746174696F6E20526F6164AAEF
+    serial  ble: accepted seq 8 -> expect: screen=Navigating icon=Roundabout exit=2 distance="200 m" road="Station Road"
+    STATUS  01 08 00 01 08 00 00 00
+
+ 9  long_road_name: road name cut to fit: 'Sir Mokshagundam V...'
+    0101092F01000020030000FFFFFFFFFFFFFFFF1F536972204D6F6B73686167756E64616D205669737665737661726179612052C6FF
+    serial  ble: accepted seq 9 -> expect: screen=Navigating icon=Straight distance="800 m" road="Sir Mokshagundam Visvesvaraya R"
+    STATUS  01 09 00 01 09 00 00 00
+
+10  rerouting: REROUTING screen
+    01010A10020000FFFFFFFFFFFFFFFFFFFFFFFF007F8A
+    serial  ble: accepted seq 10 -> expect: screen=Rerouting
+    STATUS  01 0A 00 01 0A 00 00 00
+
+11  arrived: DESTINATION REACHED screen
+    01010B10030A0000000000FFFFFFFFFFFFFFFF00F544
+    serial  ble: accepted seq 11 -> expect: screen=Arrived
+    STATUS  01 0B 00 01 0B 00 00 00
+
+12  stopped: navigation stopped: back to READY
+    01010C10000000FFFFFFFFFFFFFFFFFFFFFFFF00F2CA
+    serial  ble: accepted seq 12 -> expect: screen=Ready
+    STATUS  01 0C 00 01 0C 00 00 00
+```
+
+Pass: all 12 are accepted; after each the display shows what `expect:` says; STATUS counts
+accepted frames up and shows the last sequence; the transitions are clean; no reset.
+
+| Date | Tester | Messages accepted of 12 | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### B4. Invalid messages are rejected safely
+
+Right after B3, send these five. The display must **keep showing the previous screen (Ready)**.
+The firmware must not reset or crash.
+
+```text
+ 1  BAD_crc: must be REJECTED (BadCrc); the display must not change
+    01010D1B010100C2010000FFFFFFFFFFFFFFFF0B4D61696E205374726565740DA0
+    serial  ble: rejected BadCrc (33 bytes)
+    STATUS  01 0C 04 01 0C 00 01 00
+
+ 2  BAD_version: must be REJECTED (BadVersion)
+    02010E10010100FFFFFFFFFFFFFFFFFFFFFFFF00BC62
+    serial  ble: rejected BadVersion (22 bytes)
+    STATUS  01 0C 02 01 0C 00 02 00
+
+ 3  BAD_truncated: must be REJECTED (BadLength)
+    01010D1B010100C2010000FFFFFFFFFFFFFFFF0B4D61696E205374726565
+    serial  ble: rejected BadLength (30 bytes)
+    STATUS  01 0C 03 01 0C 00 03 00
+
+ 4  BAD_maneuver: must be REJECTED (BadPayload)
+    01010E10010B00FFFFFFFFFFFFFFFFFFFFFFFF00F556
+    serial  ble: rejected BadPayload (22 bytes)
+    STATUS  01 0C 06 01 0C 00 04 00
+
+ 5  BAD_garbage: must be REJECTED (BadVersion)
+    DEADBEEF0102030405
+    serial  ble: rejected BadVersion (9 bytes)
+    STATUS  01 0C 02 01 0C 00 05 00
+```
+
+Then send one valid message to confirm it still works (`python ../protocol/frame_tool.py encode
+--seq 13 --mode navigating --maneuver turn_left --distance 450 --road "Main Street"`): it must be
+accepted and shown. (The firmware logs at most one rejection line per 100 ms; sending by hand is
+slower than that, so every rejection is logged.)
+
+Pass: all five rejected with the stated reason; display unchanged; STATUS rejected count rises by one
+each time and the last-error byte matches; no reset; the next valid message is accepted.
+
+| Date | Tester | Rejected of 5 | Result | Notes |
+|---|---|---|---|---|
+| | | | **NOT RUN** | |
+
+#### B5. Disconnect and reconnect
+
+1. Disconnect from the phone app.
+   Expected: `ble: disconnected (reason N)` (`N` is a BLE reason code), and the display shows
+   **BLUETOOTH DISCONNECTED**.
+2. Scan again: **MotoNav** must be visible again without resetting the board (it advertises
+   again by itself).
+3. Reconnect. Expected: `ble: connected` and the Ready screen.
+4. Send the first message of B3 again (sequence 1). It must be accepted even though the previous
+   connection had reached a higher sequence number: sequence numbers restart per connection.
+5. Walk away, or switch the phone's Bluetooth off, to force a connection loss by timeout. Expected: after a
+   few seconds (the exact time depends on the phone) `ble: disconnected (reason N)` and the Disconnected screen.
+
+Pass: every step happens as stated and the board never resets.
+
+| Date | Tester | Result | Notes |
+|---|---|---|---|
+| | | **NOT RUN** | |
+
+#### B6. Sequence rules: duplicate, stale, resync
+
+Continue from a connection where the last accepted sequence is 12 (the end of B3; the invalid
+messages in B4 do not change it).
+
+```text
+ 1  duplicate_of_12: the same message as sequence 12 again: a DUPLICATE, ignored
+    01010C10000000FFFFFFFFFFFFFFFFFFFFFFFF00F2CA
+    serial  ble: ignored duplicate (seq 12)
+    STATUS  01 0C 02 01 0C 00 05 00
+
+ 2  stale_3: an OLDER sequence (3): STALE, rejected
+    01010318010200BC020000FFFFFFFFFFFFFFFF084F6C6420526F6164601C
+    serial  ble: ignored stale (seq 3)
+    STATUS  01 0C 07 01 0C 00 06 00
+
+ 3  stale_4: another older one (4): STALE, rejected
+    010104180102008A020000FFFFFFFFFFFFFFFF084F6C6420526F61642436
+    serial  ble: ignored stale (seq 4)
+    STATUS  01 0C 07 01 0C 00 07 00
+
+ 4  resync_5: the THIRD stale one in a row (5): accepted as a resync, display changes
+    0101051801040058020000FFFFFFFFFFFFFFFF084E657720526F6164BF74
+    serial  ble: accepted seq 5 -> expect: screen=Navigating icon=SlightRight distance="600 m" road="New Road"
+    STATUS  01 05 07 01 0D 00 07 00
+
+ 5  continues_6: sequence 6 follows normally
+    0101061801000026020000FFFFFFFFFFFFFFFF084E657720526F6164309F
+    serial  ble: accepted seq 6 -> expect: screen=Navigating icon=Straight distance="550 m" road="New Road"
+    STATUS  01 06 07 01 0E 00 07 00
+```
+
+Pass: exactly the serial lines above; the duplicate and the first two stale messages change nothing
+on the display; the third stale message is accepted (the phone restarted its counter) and changes
+the display.
+
+| Date | Tester | Result | Notes |
+|---|---|---|---|
+| | | **NOT RUN** | |
+
+#### B7. Stability
+
+Stay connected for **10 minutes**, sending a message every minute or so. Watch the serial log.
+
+Pass: the boot banner appears only once; no `reset:` line after the first; the once-a-minute
+`[stats]` lines keep `heap_free` steady (it will be lower than in Phase 1, because the Bluetooth
+stack uses memory: **record the number**, it is not yet known); the `[ble]` lines show the
+counts you expect.
+
+Do **not** run `analyze_log.py` on a Bluetooth log: it expects the display to change constantly (as
+in the Phase 1 simulation) and would report an idle display as frozen.
+
+| Date | Tester | Run length | heap_free (start / end) | Result | Notes |
+|---|---|---|---|---|---|
+| | | | | **NOT RUN** | |
+
+**Evidence to send for the B tests:** `b.log`; the app's screen showing the scan result, the MTU
+and the STATUS values; photos of the display for B3 (at least the first, a middle and the last
+message) and B4.
+
+### 5.5 Known limitations of Phase 2
+
+- **No Bluetooth test has been run.** The radio code (`src/ble_link.cpp`) is thin: it only advertises,
+  accepts one phone, queues writes and publishes STATUS. Everything it decides is in tested code, but
+  whether it advertises, connects, negotiates, receives and reconnects on a real board is unknown.
+- **No security.** No pairing or encryption: anyone in range can connect and write (see
+  BLUETOOTH_PROTOCOL.md section 11).
+- **No stale-data detection** or heartbeat: if the phone stops sending, the display keeps the last
+  state. Phase 5.
+- **The phone must negotiate the MTU** (at least 56). One phone at a time.
+- **The first frame written in the instant of connecting may be discarded** (queued writes are
+  cleared on connect). The phone should send the current state after the MTU exchange.
+- **Memory:** the Bluetooth stack's run-time heap cost on this board is unknown until B7 is run.
+  Flash use is 67 % of the application partition.
+- **The firmware logs one `expect:` line per accepted message.** At one update a second that is a lot
+  of lines; acceptable for development.
+- **There is no Android app yet.** The messages are sent by hand from a generic BLE app.
+- **The Phase 1 and Phase 2 firmware duplicate about 100 lines of start-up code.** `main.cpp` was
+  deliberately left untouched so the Phase 1 validation stays valid; once it passes, the two can be
+  merged onto `src/device_common.h`.

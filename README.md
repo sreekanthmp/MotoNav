@@ -17,10 +17,10 @@ Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
 |---|---|---|
 | Phase 0 — discovery and planning | Implemented (documents only) | Approved. |
 | Phase 1 — display prototype | Implemented and host-tested. **Not device-tested.** | Approved. Physical hardware validation (T1-T6) is prepared and **not yet run**. Results in [TESTING.md](TESTING.md). |
-| ESP32 firmware: model, screens, simulation, diagnostics logic | Host-tested | 53 C++ and 56 Python tests pass on a normal computer. |
+| ESP32 firmware: model, screens, simulation, diagnostics logic | Host-tested | 77 C++ and 76 Python tests pass on a normal computer (these include the Phase 2 protocol tests). |
 | ESP32 firmware: device code (`main.cpp`, SSD1306 adapter) | Compile-checked for the classic-ESP32 DevKit target (0 warnings). **Never run on a board.** | See [TESTING.md](TESTING.md). |
-| BLE protocol | Planned | Phase 2. Not started. |
-| Android app | Planned | Phase 3. |
+| Phase 2 — Bluetooth LE link, simulated messages | Codec and receiver **implemented and host-tested**. Radio code (`motonav_ble`) **compile-checked only**. **Never run over a real Bluetooth link.** | Prepared at the project owner's request while the Phase 1 hardware validation is pending. Protocol: [BLUETOOTH_PROTOCOL.md](BLUETOOTH_PROTOCOL.md). Device tests B1-B7 are **not run**: [TESTING.md](TESTING.md) section 5. Awaiting review. |
+| Android app | Planned | Phase 3. Not started. |
 | Google Navigation SDK integration | Planned | Phase 4. Commercial-terms questions are open, see [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md#technical-risks-and-unknowns). |
 | Hardware | **Provisional** | From product listings: classic ESP32 30-pin DevKit (CP2102), 0.96" 128x64 I2C OLED, expected SSD1306. **Not verified on the parts.** Verification steps and diagnostics are in [HARDWARE.md](HARDWARE.md) section 4. |
 
@@ -28,8 +28,10 @@ Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
 far are *host* results (automated tests and rendered images on a normal
 computer) plus compile checks. The hardware is identified only from product
 listings, so the pin numbers, the display size and the OLED address in
-`firmware/platformio.ini` are provisional until verified. There is no BLE and no
-Android code.
+`firmware/platformio.ini` are provisional until verified. The Phase 2 Bluetooth
+firmware is a separate environment, `motonav_ble`; the Phase 1 environment
+`motonav`, which the hardware tests T1 to T6 check, is unchanged. There is no
+Android code. The Phase 2 B tests should wait until T1 to T4 have passed.
 
 ## Try it
 
@@ -37,8 +39,8 @@ Host tests and screen images (need `g++`, `make` and Python 3; Pillow for the im
 
 ```bash
 cd firmware/host
-make test        # layering check + 53 C++ tests, with sanitizers
-make test-tools  # 56 Python tests: diagnostics simulations, log analyser, docs check
+make test        # layering check + 77 C++ tests, with sanitizers
+make test-tools  # 76 Python tests: diagnostics simulations, log analyser, Bluetooth reference tool, docs check
 make render      # writes out/*.pbm and out/montage_*.png to look at
 ```
 
@@ -53,6 +55,15 @@ pio run -e motonav    -t upload && pio device monitor   # T4 the firmware; T5/T6
 python host/analyze_log.py t5.log --min-minutes 30      # judge a long-run log
 ```
 
+Phase 2 (Bluetooth), **only after T1 to T4 have passed**. The steps and the ready-to-send
+test messages are in [TESTING.md](TESTING.md) section 5 (tests B1 to B7):
+
+```bash
+cd firmware
+pio run -e motonav_ble -t upload && pio device monitor
+python ../protocol/frame_tool.py scenarios --compact   # messages to paste into a BLE app
+```
+
 ## Documents
 
 | Document | Purpose |
@@ -61,7 +72,5 @@ python host/analyze_log.py t5.log --min-minutes 30      # judge a long-run log
 | [HARDWARE.md](HARDWARE.md) | Hardware assumptions, identification steps, firmware configuration |
 | [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) | Phases, risks, Phase 1 results and acceptance criteria |
 | [DECISIONS.md](DECISIONS.md) | Technical decisions and their status |
+| [BLUETOOTH_PROTOCOL.md](BLUETOOTH_PROTOCOL.md) | The phone-to-device Bluetooth LE protocol, version 1: GATT layout, frame format, validation, sequence rules |
 | [TESTING.md](TESTING.md) | What was tested, how, with actual results; device test procedures |
-
-`BLUETOOTH_PROTOCOL.md` is created when Phase 2 starts, so it never describes
-work that does not exist.

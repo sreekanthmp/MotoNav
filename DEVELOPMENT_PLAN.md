@@ -1,7 +1,7 @@
 # Development Plan
 
 Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
-**Planned**, **Blocked**. Last updated after the hardware was provisionally identified (2026-11-08).
+**Planned**, **Blocked**. Last updated after Phase 2 (Bluetooth) was prepared (2026-11-08).
 
 Rule: each phase ends at a review. The next phase does not start until the
 project owner approves.
@@ -12,8 +12,8 @@ project owner approves.
 |---|---|---|
 | 0 — Discovery and planning | Implemented (documents only) | Approved. |
 | 1 — ESP32 display prototype | Implemented and host-tested. **Not device-tested.** | Approved by the project owner, including the hardware diagnostics and the validation procedure. **Physical hardware validation (T1-T6) is the current stage and has not been run.** See [Phase 1 results](#phase-1-results). The hardware is identified only provisionally (from product listings) and no validation has been run, so nothing has run on hardware. |
-| 2 — Bluetooth communication | Planned | **Not started.** Begins only after the hardware validation succeeds and the owner explicitly approves. First target: Android phone, then BLE, then ESP32, then SSD1306, using simulated navigation messages (not the Google Navigation SDK). |
-| 3 — Android app foundation | Planned | |
+| 2 — Bluetooth communication (firmware side) | Protocol, codec and receiver **implemented and host-tested**. Radio code **compile-checked only**. **Not device-tested: nothing has run over a real Bluetooth link.** | Prepared at the owner's request ("we can test this in real hardware, but not now") while the Phase 1 hardware validation is pending. Separate environment `motonav_ble`; Phase 1 `motonav` unchanged. Messages are simulated (sent by hand from a generic BLE app); no Google SDK. See [Phase 2](#phase-2--bluetooth-le-link-firmware-side). **Awaiting review.** The device tests B1-B7 should wait until T1-T4 have passed. |
+| 3 — Android app foundation | Planned | **Not started.** Must pass the shared vectors in `protocol/vectors.txt`. |
 | 4 — Google Navigation SDK | Planned | Commercial-terms questions open. |
 | 5 — Navigation reliability | Planned | |
 | 6 — Production hardware investigation | Planned | Not started on purpose. |
@@ -82,7 +82,9 @@ and before any manufacturing commitment.
    been verified.
 8. **BLE payload size.** The default ATT MTU leaves 20 usable bytes. Road names
    and a full snapshot may not fit in one write unless the MTU is negotiated or
-   the protocol sends changed fields only. Decide in Phase 2.
+   the protocol sends changed fields only. **Decided in Phase 2:** every message is a full
+   state of at most 53 bytes, so the phone must negotiate an MTU of at least 56
+   (BLUETOOTH_PROTOCOL.md section 3). Whether a real phone does so is untested.
 9. **BLE on Android.** Behaviour differs by phone vendor (background limits,
    Android 12+ Bluetooth permissions). Needs on-device testing across at least
    two phones.
@@ -110,8 +112,8 @@ and before any manufacturing commitment.
     Pinned in Phase 1 to what the compile check resolved on 2026-11-08: platform
     `espressif32@8.0.0`, package `framework-arduinoespressif32@4.30312.261024`
     (with `esp32-libs@3.3.12`), Adafruit GFX 1.13.0, Adafruit SSD1306 2.5.17,
-    Adafruit BusIO 1.17.4. Phase 2 must check that the chosen BLE library works
-    with this framework version before relying on it.
+    Adafruit BusIO 1.17.4. Phase 2 checked that NimBLE-Arduino 2.5.2 builds with this
+    framework version (it does; pinned in `platformio.ini`). It has not run.
 16. **Android toolchain.** SDK 8.x needs Android Gradle Plugin 9.0.1, Gradle
     9.1.0 and `targetSdk` 37 (Verified in the release notes). The cloud
     environment has Gradle 8.14.3 and JDK 21 and no Android SDK, so builds and
@@ -127,6 +129,25 @@ and before any manufacturing commitment.
     report I2C write errors. Not a Phase 1 requirement; relevant to Phase 5.
 
 ### D. Tooling
+
+### E. Bluetooth (found in Phase 2)
+
+19. **The radio code has never run.** Advertising, connecting, MTU negotiation, write
+    callbacks, notifications and reconnecting are all untested. The code is thin and the
+    decisions are in tested logic, but only tests B1 to B7 can show it works.
+20. **No security.** No pairing or encryption: anyone in range can connect and write
+    navigation data. Acceptable for a prototype, **not for a product** (D-37).
+21. **Memory cost of the Bluetooth stack is unknown.** Flash use is 67 % of the application
+    partition (881,160 B of 1,310,720 B); free heap at run time is measured only by B7.
+22. **The sequence-number resync is built for an app behaviour that is only assumed**
+    (an app restarting its counter without reconnecting). Revisit when the Android app
+    exists (D-35).
+23. **Android behaves differently across phone makers** (MTU negotiation, connection
+    parameters, background limits). Needs at least two phones in Phase 3 and Phase 5.
+24. **Two firmware entry points** (`main.cpp`, `main_ble.cpp`) duplicate about 100 lines.
+    Deliberate, to keep the Phase 1 validation valid (D-32). Merge after Phase 1 passes.
+25. **No stale-data detection.** If the phone stops sending, the display keeps the last
+    state. Belongs to Phase 5 (heartbeat and timeout).
 
 ## Phase 1 — ESP32 display prototype
 
@@ -206,7 +227,7 @@ be verified on the physical board by the owner.
 | 7 | The simulated loop runs for at least 12 hours with no reset and no downward trend in free heap, from the serial log | Device |
 | 8 | `TESTING.md` records what was run, on what, with actual results, marking each result Host or Device | — |
 
-Phase 1 stops there. Phase 2 starts only after review.
+Phase 1 stops there. (At the owner's request, Phase 2 was then prepared before the hardware validation; see [Phase 2](#phase-2--bluetooth-le-link-firmware-side).)
 
 ### Phase 1 results
 
@@ -232,21 +253,63 @@ the first gate). What is done is everything that can be proven without hardware.
 
 1. **U-turns have a side** (`UTurnLeft`, `UTurnRight`) in the internal model instead of
    the brief's single `U_TURN`. Needs your approval (D-17 in [DECISIONS.md](DECISIONS.md)).
-2. **Remaining distance and ETA are not in the model yet.** They are added with the
-   protocol in Phase 2.
+2. **Remaining distance and remaining time** were not in the Phase 1 model. Phase 2 carries
+   them in the protocol (as `NavExtras`) but the display does not show them (D-21).
 3. **Screens draw through a small `Canvas` interface** rather than calling Adafruit
    GFX directly (refines D-08). This is what makes the host tests and the later
    AMOLED swap possible.
 4. **The host test harness is a plain Makefile**, not PlatformIO's native test
    environment (D-18).
 
-## Later phases (summary, not yet planned in detail)
+## Phase 2 — Bluetooth LE link (firmware side)
 
-- **Phase 2:** versioned BLE GATT protocol and `BLUETOOTH_PROTOCOL.md`;
-  firmware receives, validates and displays messages; tested with a generic BLE
-  tool before any Android code exists.
-- **Phase 3:** Kotlin app with scan, connect, persist the paired device, send
-  test navigation messages.
+**Goal:** the ESP32 receives navigation messages over Bluetooth LE and shows them on the
+SSD1306, with the phone replaced by a generic BLE app sending simulated messages. No Android
+code and no Google Navigation SDK.
+
+**How it was done.** Prepared at the owner's request while the Phase 1 hardware validation
+(T1-T6) is still pending. To keep that validation valid, Phase 1's `motonav` environment is
+untouched (shown by a byte comparison against commit `3eba30f`) and Phase 2 is the new
+environment `motonav_ble` (D-32).
+
+**Delivered:**
+
+- [BLUETOOTH_PROTOCOL.md](BLUETOOTH_PROTOCOL.md): GATT layout, frame format, validation order,
+  sequence rules, STATUS characteristic, versioning, limitations.
+- `firmware/lib/motonav_protocol`: CRC, frame codec and receiver as pure C++ (D-33 to D-35).
+- `firmware/src/ble_link.*` and `main_ble.cpp`: NimBLE glue and the Phase 2 firmware.
+- `protocol/frame_tool.py` and `protocol/vectors.txt`: an independent Python implementation, and
+  45 shared test vectors (D-39).
+- Host tests: 24 new C++ tests (77 in total), including fuzzing; new Python tests (76 in total).
+- [TESTING.md](TESTING.md) section 5: ready-to-send test messages with the predicted serial
+  output and STATUS bytes, and the device tests B1 to B7.
+
+### Phase 2 acceptance criteria and results
+
+| # | Criterion | Verified by | Result |
+|---|---|---|---|
+| 1 | The protocol is specified in `BLUETOOTH_PROTOCOL.md` | Document | **Done** |
+| 2 | Every class of invalid frame is rejected (too short, wrong version, wrong length, bad CRC, unknown type, bad payload) and every valid frame accepted | Host | **Pass** (45 shared vectors, round trip, bit flips, truncation, 500,000 fuzz frames) |
+| 3 | A rejected, stale or duplicate frame never changes what the display shows | Host | **Pass** (also fuzzed) |
+| 4 | Sequence rules: duplicates, stale frames, wrap-around, resync, reset on connect | Host | **Pass** |
+| 5 | Received bytes produce the expected screen for every mode and all 11 maneuvers | Host | **Pass** (through the real `describeView`) |
+| 6 | The firmware codec and an independent implementation agree | Host | **Pass** (45 vectors, 3,000 random frames, the hand-test messages) |
+| 7 | `motonav_ble` builds with no warnings; only one connection is possible | Compile | **Pass** (881,160 B flash, 38,228 B static RAM, 0 warnings) |
+| 8 | The Phase 1 firmware is unchanged | Compile (byte comparison) | **Pass** (66 of 384,496 bytes differ, all timestamp, ELF hash and checksum) |
+| 9 | The device advertises, accepts a connection and negotiates an MTU of at least 56 | Device | **NOT RUN** (B1, B2) |
+| 10 | Messages written from a generic BLE app update the display; invalid ones are rejected without a change | Device | **NOT RUN** (B3, B4) |
+| 11 | Disconnecting and reconnecting works without a reset | Device | **NOT RUN** (B5) |
+| 12 | The sequence rules behave as specified on the device | Device | **NOT RUN** (B6) |
+| 13 | Ten minutes connected with no reset; heap use recorded | Device | **NOT RUN** (B7) |
+
+**Phase 2 cannot be called complete until B1 to B7 are run on a real board with a real phone.**
+Everything that can be proven without a radio is done.
+
+Phase 2 stops here. Phase 3 (Android) starts only after review.
+
+## Later phases (summary, not yet planned in detail)
+- **Phase 3:** Kotlin app with scan, connect, request the MTU, persist the paired device,
+  send test navigation messages. Must pass `protocol/vectors.txt`.
 - **Phase 4:** Navigation SDK integration, starting with the headless/background
   spike (risk 6).
 - **Phase 5:** reliability: reconnection, stale-data detection, interruption

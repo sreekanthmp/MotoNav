@@ -1,8 +1,11 @@
 # Architecture
 
-**Status after Phase 1:** the firmware layers in sections 3 and 4 (model,
-rendering, simulation) are **Implemented and host-tested**. Section 1's phone,
-BLE and Google-SDK parts are still **Proposed** (Phases 2-4). Facts marked
+**Status after Phase 2:** the firmware layers in sections 3 and 4 (model,
+rendering, simulation) are **Implemented and host-tested**. The firmware side of
+the Bluetooth link (frame codec, receiver, section 1) is **Implemented and
+host-tested**; the Bluetooth radio code is **compile-checked only** and has never
+run over a real link. The phone side (Android app, Google SDK) is still
+**Proposed** (Phases 3-4). Facts marked
 **Verified** were read directly from Google's documentation on 2026-11-08 (the
 pages were last updated 2026-11-03). Everything else is a proposal or an
 assumption.
@@ -38,6 +41,34 @@ reads GPS, and never needs the internet.
 
 No further layers are proposed. In particular: no dependency-injection
 framework, no plugin system, no message bus.
+
+### Bluetooth receive path (Phase 2: Implemented, radio code compile-checked only)
+
+```
+ phone --write--> BleLink (src/ble_link.*)   NimBLE glue only: advertise, one connection, copy each
+                      |                      write into a queue (8 deep). Decides nothing.
+                      v
+              Receiver (lib/motonav_protocol)   decodeNavUpdate: length, version, CRC, type, payload ranges;
+                      |                         then the sequence rules: accept, duplicate, stale, resync.
+                      v                         A rejected frame never changes the state.   [host-tested]
+              NavSnapshot + extras  --> DeviceState (adds "connected") --> Presenter --> OLED
+```
+
+- The protocol is specified in [BLUETOOTH_PROTOCOL.md](BLUETOOTH_PROTOCOL.md). The firmware's
+  `Receiver` and an independent Python implementation (`protocol/frame_tool.py`) are checked
+  against the same test vectors (`protocol/vectors.txt`); the Android app must pass them too.
+- Everything that decides whether a message is believed is in `Receiver`, which has no
+  Bluetooth or Arduino code and is unit-tested on a computer. `BleLink` and `main_ble.cpp`
+  only move bytes and connection events into it.
+- The display never learns about Bluetooth: it receives a `DeviceState` exactly as in
+  Phase 1. "Disconnected" is a field of that state, and it wins over leftover navigation data.
+- **A new environment, not a changed one.** The Bluetooth firmware is the separate PlatformIO
+  environment `motonav_ble`. The Phase 1 environment `motonav` excludes the new files by its
+  build filter and was shown to be byte-for-byte the same code (TESTING.md section 5.3), so
+  the Phase 1 hardware tests remain valid.
+- Not in Phase 2, by design: pairing and encryption, stale-data detection or a heartbeat
+  (Phase 5), more than one phone at a time, any message from device to phone beyond a small
+  status value.
 
 ## 2. Google Navigation SDK facts (Verified)
 
@@ -136,16 +167,18 @@ code is `firmware/lib/motonav/src/core/nav_model.h`.
 | `distanceToManeuverM` | uint32, or "unknown" | `getDistanceToCurrentStepMeters()` | Phase 1 |
 | `roundaboutExit` | uint8, 0 = unknown | `getRoundaboutTurnNumber()` | Phase 1 |
 | `roadName` | up to 31 bytes, RAM only | `getSimpleRoadName()` or `getFullRoadName()` | Phase 1 |
-| `remainingDistanceM` | uint32 | `getDistanceToFinalDestinationMeters()` | Planned, Phase 2 (with the protocol) |
-| remaining time or ETA | uint32 | phone-computed | Planned, Phase 2 |
+| `remainingDistanceM` | uint32, or "unknown" | `getDistanceToFinalDestinationMeters()` | Phase 2: carried by the protocol and stored in `NavExtras` (not in `NavSnapshot`); **not displayed** |
+| remaining time | uint32 seconds, or "unknown" | `getTimeToFinalDestinationSeconds()` | Phase 2: as above. The phone converts it to a clock ETA if one is ever wanted; the ESP32 has no clock. |
 
 `DeviceState` = `Link` (`Disconnected` / `Connected`) + `NavSnapshot`.
 `Disconnected` is **not** a snapshot field. It is a firmware condition derived
 from the BLE link state, and it takes priority over any stale navigation data.
 
-The display does not currently show remaining distance or ETA (the display
-requirements do not list them), so they are added with the protocol in Phase 2
-rather than carried unused now.
+The display does not show remaining distance or time (the display requirements
+do not list them). Phase 2 carries them in the protocol anyway, in `NavExtras`
+beside the snapshot, because adding a field later would need a new protocol
+version. This is a small deliberate cost; it is host-tested and can be dropped
+before Phase 3 if you prefer. **Open to change.**
 
 ### Code layers (Implemented)
 
@@ -155,13 +188,17 @@ sim/    scripted navigation data + serial test commands   core only
 ui/     ScreenView, screens, icons, Presenter, Canvas     core + Canvas interface only
 diag/   diagnostic verdicts, log-line formats, frame      standard headers only (reads no hardware)
         consistency check
-src/    main.cpp, SSD1306 Canvas adapter, pin config,     the only code that touches hardware
+protocol/ (lib/motonav_protocol) BLE frame codec, CRC,   core + standard headers only; no Bluetooth
+        receiver + sequence rules, log lines              header, no Arduino
+src/    main.cpp, main_ble.cpp, ble_link.*, SSD1306       the only code that touches hardware
+        Canvas adapter, pin config, device_common.h,
         tools/hw_check.cpp, tools/oled_check.cpp
 ```
 
-`firmware/host/check_layering.sh` fails the build if `core/`, `sim/`, `ui/` or `diag/`
-include Arduino, Wire, a display driver or a radio header, or if `core/` includes `ui/`,
-`sim/` or `diag/`. It was checked by deliberately breaking the rule.
+`firmware/host/check_layering.sh` fails the build if `core/`, `sim/`, `ui/`, `diag/` or
+`protocol/` include Arduino, Wire, a display driver or a radio header; if `core/` includes
+`ui/`, `sim/`, `diag/` or `protocol/`; if `ui/`, `sim/` or `diag/` include `protocol/`; or if
+`protocol/` includes `ui/`, `sim/` or `diag/`. It was checked by deliberately breaking the rules.
 
 ### Rendering path (Implemented)
 
@@ -201,7 +238,8 @@ a many-to-one mapping is needed.
 | `REROUTING` | not a maneuver: comes from `NavState.REROUTING` |
 
 Gaps found in Phase 0, and how Phase 1 handled them in the **internal model**
-(the wire encoding is still a Phase 2 decision):
+(the wire encoding was decided in Phase 2: [BLUETOOTH_PROTOCOL.md](BLUETOOTH_PROTOCOL.md)
+section 5, where the maneuver numbers 0 to 10 are the values of the firmware's enum):
 
 1. `Roundabout` carries the **exit number** (`roundaboutExit`), drawn inside the
    roundabout icon. **Implemented, host-tested.**
@@ -220,15 +258,21 @@ show the straight arrow.
 
 ## 4. Repository structure
 
-**Implemented (Phase 1):**
+**Implemented (Phases 1 and 2):**
 
 ```
 MotoNav/
 ├── README.md  ARCHITECTURE.md  HARDWARE.md  DEVELOPMENT_PLAN.md  DECISIONS.md  TESTING.md
+├── BLUETOOTH_PROTOCOL.md         Phase 2: the phone-to-device protocol, version 1
+├── protocol/                     Phase 2: frame_tool.py (independent Python implementation) and
+│                                 vectors.txt (shared test vectors the firmware and Android must pass)
 └── firmware/
-    ├── platformio.ini            envs: motonav (default), hw_check, oled_check; provisional hardware values
+    ├── platformio.ini            envs: motonav (default), motonav_ble, hw_check, oled_check; provisional hardware values
     ├── src/                      device-only code (the only code that touches hardware)
-    │   ├── main.cpp              setup, loop, I2C scan, display init/retry, serial commands, stats
+    │   ├── main.cpp              Phase 1 firmware: setup, loop, I2C scan, display init/retry, serial commands, stats
+    │   ├── main_ble.cpp          Phase 2 firmware (env motonav_ble): the same, with the display driven by Bluetooth
+    │   ├── ble_link.h/.cpp       NimBLE glue: advertise, one connection, write queue, STATUS notify
+    │   ├── device_common.h       reset-reason name and I2C scan, shared by main_ble.cpp
     │   ├── ssd1306_canvas.h      Canvas adapter over Adafruit GFX + SSD1306
     │   ├── display_config.h      required build flags; no default pins or addresses
     │   └── tools/                standalone diagnostics, not part of the firmware
@@ -239,14 +283,18 @@ MotoNav/
     │   ├── sim/                  scripted simulation + serial command controller
     │   ├── ui/                   canvas, view, icons, screens, presenter, text
     │   └── diag/                 hw_verdict (pass/warn/fail rules), log_format, frame_check
+    ├── lib/motonav_protocol/src/protocol/   Phase 2, hardware-independent, built for the device AND the host
+    │   ├── crc16, frame          CRC-16/CCITT-FALSE; encode and decode of NAV_UPDATE with validation
+    │   └── receiver, ble_log     sequence rules, counters, STATUS bytes; serial log-line formats
     └── host/                     host-side tests and simulation (no PlatformIO, no hardware)
         ├── Makefile  check_layering.sh  montage.py  render_screens.cpp  t4_script.cpp
         ├── bitmap_canvas.h  font5x7.h  test_framework.h
-        ├── tests/                53 C++ tests
+        ├── tests/                77 C++ tests (incl. test_protocol.cpp)
         ├── shim/                 host-only stand-ins for Arduino/ESP32/Adafruit + a simulated board
         ├── hw_check_sim.cpp  oled_check_sim.cpp  stats_sample.cpp   run the real tools / make synthetic logs
+        ├── frame_check.cpp  ble_script.cpp   run the real frame decoder / receiver on hex input (cross-check, test messages)
         ├── analyze_log.py        judges a long-run serial log (T5, T6)
-        ├── tests_py/             56 Python tests
+        ├── tests_py/             76 Python tests
         └── golden/screens.txt    regression hashes of every screen at 128x64 and 128x32
 
 docs/reference/                   generated images and expected outputs used by TESTING.md
@@ -255,14 +303,12 @@ docs/reference/                   generated images and expected outputs used by 
 **Planned (not started):**
 
 ```
-├── firmware/lib/motonav/src/ble/   Phase 2
-├── android/                        Phase 3 and later
-└── protocol/                       Phase 2: message-layout test vectors shared by both sides
+└── android/                        Phase 3 and later
 ```
 
-`protocol/` holds known-good encoded messages (hex) that both the firmware
-tests and the Android tests must decode identically. It is the cheapest
-protection against the two sides drifting apart.
+`protocol/vectors.txt` holds known-good encoded messages (hex) and the exact result a receiver
+must give for each. The firmware tests and the Android tests must agree with it. It is the
+cheapest protection against the two sides drifting apart.
 
 ## 5. Policy constraints that shape the design
 

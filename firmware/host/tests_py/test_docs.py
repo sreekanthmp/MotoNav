@@ -55,6 +55,56 @@ class ExpectedOutputsMatchTheCode(unittest.TestCase):
             self.assertIn("docs/reference/" + name, DOC, "%s is not embedded in TESTING.md" % name)
 
 
+class Phase2Documents(unittest.TestCase):
+    PROTO = (REPO / "BLUETOOTH_PROTOCOL.md").read_text()
+    SOURCE = (REPO / "firmware" / "src" / "ble_link.cpp").read_text()
+    VECTORS = (REPO / "protocol" / "vectors.txt").read_text()
+
+    def section5(self):
+        return DOC[DOC.index("## 5. Phase 2"):]
+
+    def test_the_uuids_in_the_protocol_document_are_the_ones_in_the_firmware(self):
+        for name in ("kServiceUuid", "kNavDataUuid", "kStatusUuid"):
+            uuid = re.search(name + r'\s*=\s*"([0-9a-f-]{36})"', self.SOURCE).group(1)
+            self.assertIn(uuid, self.PROTO, name)
+        service = re.search(r'kServiceUuid\s*=\s*"([0-9a-f-]{36})"', self.SOURCE).group(1)
+        self.assertIn(service, DOC)
+
+    def test_the_worked_example_is_a_real_test_vector(self):
+        line = [l for l in self.VECTORS.splitlines() if l.startswith("navigating_full ;")][0]
+        vector_hex = line.split(" ; ")[1].strip()
+        example = re.search(r"```text\n(01 01 02 1B.*?)\n```", self.PROTO, re.S).group(1)
+        self.assertEqual("".join(example.split()), vector_hex)
+
+    def test_the_numbers_in_the_protocol_document_match_the_vectors(self):
+        rows = [l for l in self.VECTORS.splitlines() if l and not l.startswith("#")]
+        ok = sum(1 for l in rows if " ; ok ; " in l)
+        self.assertIn("45 frames (23 valid, 22 invalid", self.PROTO)
+        self.assertEqual((len(rows), ok, len(rows) - ok), (45, 23, 22))
+
+    def test_expected_serial_lines_and_status_bytes_match_the_real_receiver(self):
+        blocks = re.findall(r"^ ?\d+  (\S+): .*\n    ([0-9A-F]+)\n    serial  (.*)\n    STATUS  (.*)$", self.section5(), re.M)
+        self.assertGreaterEqual(len(blocks), 22)           # 12 valid + 5 invalid + 5 sequence-rule messages
+        stdin = "\n".join(hexs for _, hexs, _, _ in blocks) + "\n"
+        out = helpers.run_binary("ble_script", "--status", input_text=stdin).stdout.splitlines()
+        self.assertEqual(len(out), 2 * len(blocks))
+        for i, (name, _, serial, status) in enumerate(blocks):
+            self.assertEqual(out[2 * i], serial, name)
+            self.assertEqual(out[2 * i + 1].strip(), "status: " + status, name)
+
+    def test_every_phase_2_device_test_is_not_run(self):
+        section = self.section5()
+        self.assertGreaterEqual(section.count("**NOT RUN**"), 7)
+        self.assertNotRegex(section, r"\*\*(PASS|PASSED|FAIL|FAILED)\*\*\s*\|\s*\n")
+        row = [l for l in section.splitlines() if l.startswith("| **B1**")]
+        self.assertEqual(len(row), 1)
+        self.assertIn("NOT RUN", row[0])
+
+    def test_phase_2_never_claims_a_bluetooth_link_was_tested(self):
+        self.assertIn("nothing has run over a real bluetooth link", self.section5().lower())
+        self.assertIn("never run over a real Bluetooth link", " ".join(self.PROTO.split()))
+
+
 class NoHardwareTestIsMarkedPassedWithoutEvidence(unittest.TestCase):
     def hardware_section(self):
         return DOC[DOC.index("## 3. Physical hardware validation"):DOC.index("## 4. Known limitations")]
