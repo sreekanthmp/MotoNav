@@ -6,6 +6,12 @@
 #include <Arduino.h>
 #include <Wire.h>
 
+// The prototype target is the classic ESP32 (see HARDWARE.md). Building for any
+// other chip stops here instead of producing a binary nobody has planned for.
+#if !defined(CONFIG_IDF_TARGET_ESP32)
+#error "MotoNav firmware targets the classic ESP32. Use the esp32_nodemcu environment, or see HARDWARE.md if the board turns out to be a different chip."
+#endif
+
 #include "display_config.h"
 #include "sim/sim.h"
 #include "ssd1306_canvas.h"
@@ -88,6 +94,10 @@ void setup() {
   delay(300);
   Serial.println();
   Serial.println("MotoNav firmware - Phase 1 (simulated navigation, no BLE)");
+  Serial.printf("chip: %s rev %u, %u core(s), flash %lu bytes\n", ESP.getChipModel(),
+                static_cast<unsigned>(ESP.getChipRevision()),
+                static_cast<unsigned>(ESP.getChipCores()),
+                static_cast<unsigned long>(ESP.getFlashChipSize()));
   Serial.printf("config: %dx%d display at 0x%02X, SDA=%d SCL=%d\n",
                 MOTONAV_OLED_WIDTH, MOTONAV_OLED_HEIGHT,
                 static_cast<unsigned>(MOTONAV_OLED_I2C_ADDR), MOTONAV_I2C_SDA, MOTONAV_I2C_SCL);
