@@ -33,6 +33,16 @@ inline int& checks() {
   return n;
 }
 
+
+inline void checkStr(const char* actual, const char* expected, const char* file, int line,
+                     const char* expression) {
+  ++checks();
+  if (strcmp(actual, expected) != 0) {
+    ++failures();
+    printf("    FAIL %s:%d: %s == \"%s\", expected \"%s\"\n", file, line, expression, actual, expected);
+  }
+}
+
 }  // namespace hosttest
 
 #define TEST(name)                                         \
@@ -61,14 +71,7 @@ inline int& checks() {
     }                                                                        \
   } while (0)
 
-#define CHECK_STR(actual, expected)                                          \
-  do {                                                                       \
-    ++::hosttest::checks();                                                  \
-    const char* a_ = (actual);                                               \
-    const char* e_ = (expected);                                             \
-    if (strcmp(a_, e_) != 0) {                                               \
-      ++::hosttest::failures();                                              \
-      printf("    FAIL %s:%d: %s == \"%s\", expected \"%s\"\n", __FILE__,     \
-             __LINE__, #actual, a_, e_);                                     \
-    }                                                                        \
-  } while (0)
+// The arguments are evaluated inside ONE function call, so a temporary such as
+// `someStdString.c_str()` stays alive until the comparison has finished.
+#define CHECK_STR(actual, expected) \
+  ::hosttest::checkStr((actual), (expected), __FILE__, __LINE__, #actual)

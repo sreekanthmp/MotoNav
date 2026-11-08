@@ -18,10 +18,12 @@ CXX      ?= g++
 # Override with SANITIZE= (empty) if the compiler has no sanitizer runtime.
 SANITIZE ?= -fsanitize=address,undefined -fno-omit-frame-pointer
 LIBSRC   := ../lib/motonav/src
-LIBCPP   := $(wildcard $(LIBSRC)/core/*.cpp $(LIBSRC)/ui/*.cpp $(LIBSRC)/sim/*.cpp $(LIBSRC)/diag/*.cpp)
+LIBPROTO := ../lib/motonav_protocol/src
+LIBCPP   := $(wildcard $(LIBSRC)/core/*.cpp $(LIBSRC)/ui/*.cpp $(LIBSRC)/sim/*.cpp $(LIBSRC)/diag/*.cpp \
+                        $(LIBPROTO)/protocol/*.cpp)
 TESTCPP  := $(wildcard tests/*.cpp)
 CXXFLAGS := -std=c++11 -O1 -g -Wall -Wextra -Wpedantic -Werror $(SANITIZE) \
-            -I$(LIBSRC) -I.
+            -I$(LIBSRC) -I$(LIBPROTO) -I.
 
 .PHONY: test render golden-update check-layering sim-tools test-tools reference clean
 
@@ -43,21 +45,31 @@ build/oled_check_sim: oled_check_sim.cpp ../src/tools/oled_check.cpp font5x7.h $
 
 sim-tools: build/hw_check_sim build/oled_check_sim
 
-build/stats_sample: stats_sample.cpp $(LIBSRC)/diag/log_format.cpp $(LIBSRC)/diag/frame_check.cpp $(wildcard $(LIBSRC)/diag/*.h)
+build/stats_sample: stats_sample.cpp $(LIBSRC)/diag/log_format.cpp $(LIBSRC)/diag/frame_check.cpp $(wildcard $(LIBSRC)/diag/*.h) $(wildcard $(LIBPROTO)/protocol/*)
 	@mkdir -p build
-	$(CXX) $(CXXFLAGS) stats_sample.cpp $(LIBSRC)/diag/log_format.cpp $(LIBSRC)/diag/frame_check.cpp -o $@
+	$(CXX) $(CXXFLAGS) stats_sample.cpp $(LIBSRC)/diag/log_format.cpp $(LIBSRC)/diag/frame_check.cpp $(LIBPROTO)/protocol/ble_log.cpp $(LIBPROTO)/protocol/receiver.cpp $(LIBPROTO)/protocol/frame.cpp $(LIBPROTO)/protocol/crc16.cpp $(LIBSRC)/core/nav_model.cpp -o $@
 
-test-tools: sim-tools build/stats_sample
+# Replays frames through the real Receiver and prints the serial lines the firmware would print.
+build/ble_script: ble_script.cpp $(wildcard $(LIBPROTO)/protocol/*) $(LIBSRC)/ui/view.cpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) ble_script.cpp $(LIBPROTO)/protocol/ble_log.cpp $(LIBPROTO)/protocol/receiver.cpp $(LIBPROTO)/protocol/frame.cpp $(LIBPROTO)/protocol/crc16.cpp $(LIBSRC)/ui/view.cpp $(LIBSRC)/core/nav_model.cpp $(LIBSRC)/core/distance_format.cpp -o $@
+
+# Feeds frames through the firmware's real codec (see tests_py/test_frame_tool.py).
+build/frame_check: frame_check.cpp $(wildcard $(LIBPROTO)/protocol/*)
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) frame_check.cpp $(LIBPROTO)/protocol/frame.cpp $(LIBPROTO)/protocol/crc16.cpp -o $@
+
+test-tools: sim-tools build/stats_sample build/frame_check build/ble_script
 	python3 -I -m unittest discover -s tests_py -v
 
 test: check-layering build/run_tests
 	./build/run_tests
 
-build/run_tests: $(LIBCPP) $(TESTCPP) $(wildcard *.h) $(wildcard $(LIBSRC)/*/*.h)
+build/run_tests: $(LIBCPP) $(TESTCPP) $(wildcard *.h) $(wildcard $(LIBSRC)/*/*.h) $(wildcard $(LIBPROTO)/*/*.h)
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) $(LIBCPP) $(TESTCPP) -o $@
 
-build/render_screens: $(LIBCPP) render_screens.cpp $(wildcard *.h) $(wildcard $(LIBSRC)/*/*.h)
+build/render_screens: $(LIBCPP) render_screens.cpp $(wildcard *.h) $(wildcard $(LIBSRC)/*/*.h) $(wildcard $(LIBPROTO)/*/*.h)
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) $(LIBCPP) render_screens.cpp -o $@
 

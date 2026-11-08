@@ -14,11 +14,12 @@ def load_analyzer():
     return module
 
 
-def run_binary(name, *args):
+def run_binary(name, *args, input_text=None):
     exe = BUILD / name
     if not exe.exists():
         raise FileNotFoundError("%s is not built. Run `make test-tools` in firmware/host." % exe)
-    return subprocess.run([str(exe)] + [str(a) for a in args], capture_output=True, text=True, timeout=120)
+    return subprocess.run([str(exe)] + [str(a) for a in args], capture_output=True, text=True,
+                          timeout=120, input=input_text)
 
 
 def sample_log(minutes, mode="clean"):

@@ -33,6 +33,11 @@ class CleanRuns(unittest.TestCase):
         results, total = A.analyze(helpers.sample_log(721, "clean"), min_minutes=720)
         self.assertEqual(total, A.PASS, results)
 
+    def test_the_phase_2_firmware_log_is_understood_too(self):
+        results, total = overall(helpers.sample_log(31, "ble"))
+        self.assertEqual(total, A.PASS, results)
+        self.assertEqual(status(results, "boot banner"), A.PASS)  # the Phase 2 banner counts as a boot
+
     def test_every_stats_line_the_firmware_prints_is_understood(self):
         text = helpers.sample_log(31, "clean")
         segments, _, _ = A.parse(text)

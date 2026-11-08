@@ -9,6 +9,7 @@
 
 #include "diag/frame_check.h"
 #include "diag/log_format.h"
+#include "protocol/ble_log.h"
 
 using namespace motonav;
 
@@ -22,7 +23,8 @@ int main(int argc, char** argv) {
   char line[300];
   auto boot = [&](const char* reason) {
     puts("");
-    formatBootLine(line, sizeof(line));
+    if (m("ble")) formatBleBootLine(line, sizeof(line));
+    else formatBootLine(line, sizeof(line));
     print(line);
     formatResetLine(line, sizeof(line), reason);
     print(line);
@@ -79,6 +81,12 @@ int main(int argc, char** argv) {
 
     formatStatsLine(line, sizeof(line), s);
     print(line);
+    if (m("ble")) {
+      ReceiverStats rx;
+      rx.accepted = static_cast<uint32_t>(minute * 60);
+      formatBleStatsLine(line, sizeof(line), true, rx, 0);
+      print(line);
+    }
   }
   return 0;
 }

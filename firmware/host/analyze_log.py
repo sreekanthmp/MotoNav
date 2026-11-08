@@ -10,7 +10,7 @@ Exit status: 0 if nothing FAILED (warnings are allowed), 1 if any criterion
 FAILED, 2 for a usage problem.
 
 What it reads (the exact text is defined in lib/motonav/src/diag/log_format.cpp):
-    MotoNav firmware - Phase 1 ...        one per boot
+    MotoNav firmware - Phase 1 ...        one per boot (Phase 2 firmware: "Phase 2")
     reset: POWERON                        why the chip restarted
     [stats] uptime=60s heap_free=... ...  once a minute
     [render] MISMATCH ...                 a screen that should not change did
@@ -26,7 +26,7 @@ import sys
 PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 
 ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
-BOOT = re.compile(r"MotoNav firmware - Phase 1")
+BOOT = re.compile(r"MotoNav firmware - Phase [12]")
 RESET = re.compile(r"\breset: (\w+)")
 STATS = re.compile(
     r"\[stats\] uptime=(\d+)s heap_free=(\d+) heap_min=(\d+) max_alloc=(\d+) "
