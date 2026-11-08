@@ -166,6 +166,13 @@ connect USB. Do **not** change the wiring while USB is connected, except where a
 Optional sanity check that this checkout works on your computer (needs `g++`, `make`,
 Python 3; skip on Windows): `cd firmware/host && make test test-tools`.
 
+**Where to run commands.** Run every `pio` command **from the `firmware/` folder**, and keep your
+log files there. That folder holds `platformio.ini`, which sets the serial speed to 115200 baud:
+from anywhere else the monitor falls back to 9600 baud and shows garbage. The command blocks below
+start with `cd firmware` for a fresh terminal; if you are already in `firmware/`, that line just
+prints an error and you can ignore it. Paths in the commands below (such as `host/analyze_log.py`)
+are relative to `firmware/`.
+
 To save a serial log while watching it:
 
 ```bash
@@ -684,10 +691,11 @@ instead of by eye.
 5. Judge the log:
 
    ```bash
-   python firmware/host/analyze_log.py t5.log --min-minutes 30
+   python host/analyze_log.py t5.log --min-minutes 30
    ```
 
-   (On Windows `py` or `python`.) It exits with status 0 unless a criterion failed.
+   (Run from `firmware/`. Use `python3` on Linux or macOS if `python` is not found, and `py` or
+   `python` on Windows.) It exits with status 0 unless a criterion failed.
 6. Only now check the display itself after the long run: open the monitor again (`pio device
    monitor`; the board may restart when it opens, which is fine for this check), type `0`,
    `1`, `2`, `3`, `4`, and compare each screen with your T4.3 photos. They should be identical.
@@ -781,7 +789,7 @@ Same procedure as T5, but leave it for **at least 12 hours 5 minutes**, on a com
 will not sleep, with a good USB cable and a powered port. Then:
 
 ```bash
-python firmware/host/analyze_log.py t6.log --min-minutes 720
+python host/analyze_log.py t6.log --min-minutes 720
 ```
 
 Pass criteria are those of T5, over 12 hours, plus the display still working and matching the

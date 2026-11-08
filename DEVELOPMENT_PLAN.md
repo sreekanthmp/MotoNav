@@ -11,8 +11,8 @@ project owner approves.
 | Phase | Status | Notes |
 |---|---|---|
 | 0 — Discovery and planning | Implemented (documents only) | Approved. |
-| 1 — ESP32 display prototype | Implemented and host-tested. **Not device-tested.** | Awaiting your review. See [Phase 1 results](#phase-1-results). The hardware is identified only provisionally (from product listings) and no validation has been run, so nothing has run on hardware. |
-| 2 — Bluetooth communication | Planned | |
+| 1 — ESP32 display prototype | Implemented and host-tested. **Not device-tested.** | Approved by the project owner, including the hardware diagnostics and the validation procedure. **Physical hardware validation (T1-T6) is the current stage and has not been run.** See [Phase 1 results](#phase-1-results). The hardware is identified only provisionally (from product listings) and no validation has been run, so nothing has run on hardware. |
+| 2 — Bluetooth communication | Planned | **Not started.** Begins only after the hardware validation succeeds and the owner explicitly approves. First target: Android phone, then BLE, then ESP32, then SSD1306, using simulated navigation messages (not the Google Navigation SDK). |
 | 3 — Android app foundation | Planned | |
 | 4 — Google Navigation SDK | Planned | Commercial-terms questions open. |
 | 5 — Navigation reliability | Planned | |
