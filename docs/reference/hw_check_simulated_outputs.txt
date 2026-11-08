@@ -1,0 +1,765 @@
+################ simulated scenario: healthy
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+HW_CHECK RESULT: PASS  (12 pass, 0 warn, 0 fail)
+run 2: PASS, OLED found, same as the previous run (1 in a row)
+run 3: PASS, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: oled_at_3d
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3D
+400 kHz: device at 0x3D
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[WARN] OLED address: OLED found, but NOT at the address in platformio.ini. Change MOTONAV_OLED_I2C_ADDR to the address shown
+OLED detected at 0x3D
+ACTION: in firmware/platformio.ini set   -DMOTONAV_OLED_I2C_ADDR=0x3D   then upload hw_check again
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+WARN OLED address: OLED found, but NOT at the address in platformio.ini. Change MOTONAV_OLED_I2C_ADDR to the address shown
+HW_CHECK RESULT: WARN  (11 pass, 1 warn, 0 fail)
+run 2: WARN, OLED found, same as the previous run (1 in a row)
+run 3: WARN, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: both_addresses
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+100 kHz: device at 0x3D
+400 kHz: device at 0x3C
+400 kHz: device at 0x3D
+Scan results at 100 kHz: ack=2 nack-on-address=124 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[WARN] OLED address: devices at BOTH 0x3C and 0x3D. Another I2C device may be on the bus. Report this
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+WARN OLED address: devices at BOTH 0x3C and 0x3D. Another I2C device may be on the bus. Report this
+HW_CHECK RESULT: WARN  (11 pass, 1 warn, 0 fail)
+run 2: WARN, OLED found, same as the previous run (1 in a row)
+run 3: WARN, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: other_device
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x50
+400 kHz: device at 0x50
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[WARN] OLED address: I2C device(s) answered, but none at a typical OLED address (0x3C or 0x3D). Report the addresses shown
+--- Summary ---
+WARN OLED address: I2C device(s) answered, but none at a typical OLED address (0x3C or 0x3D). Report the addresses shown
+HW_CHECK RESULT: WARN  (9 pass, 1 warn, 0 fail)
+run 2: WARN, OLED NOT found, same as the previous run (1 in a row)
+run 3: WARN, OLED NOT found, same as the previous run (2 in a row)
+
+################ simulated scenario: no_oled
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: no devices answered
+400 kHz: no devices answered
+Scan results at 100 kHz: ack=0 nack-on-address=126 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+swapped SDA/SCL: no devices answered
+[FAIL] OLED address: no I2C device answered. Check VCC, GND, SDA and SCL, and that the OLED is the 4-pin I2C kind
+--- Summary ---
+FAIL OLED address: no I2C device answered. Check VCC, GND, SDA and SCL, and that the OLED is the 4-pin I2C kind
+HW_CHECK RESULT: FAIL  (9 pass, 0 warn, 1 fail)
+run 2: FAIL, OLED NOT found, same as the previous run (1 in a row)
+run 3: FAIL, OLED NOT found, same as the previous run (2 in a row)
+
+################ simulated scenario: swapped_wires
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: no devices answered
+400 kHz: no devices answered
+Scan results at 100 kHz: ack=0 nack-on-address=126 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+swapped SDA/SCL: device at 0x3C
+[FAIL] OLED address: a device answers only with SDA and SCL swapped. Swap the two wires
+--- Summary ---
+FAIL OLED address: a device answers only with SDA and SCL swapped. Swap the two wires
+HW_CHECK RESULT: FAIL  (9 pass, 0 warn, 1 fail)
+run 2: FAIL, OLED NOT found, same as the previous run (1 in a row)
+run 3: FAIL, OLED NOT found, same as the previous run (2 in a row)
+
+################ simulated scenario: sda_short
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads LOW, with internal pull-down reads LOW
+[FAIL] SDA line: reads LOW even with the internal pull-up: shorted to GND, or held low by a device. Unplug USB and check the wiring
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: no devices answered
+400 kHz: no devices answered
+Scan results at 100 kHz: ack=0 nack-on-address=126 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+swapped SDA/SCL: no devices answered
+[FAIL] OLED address: no I2C device answered. Check VCC, GND, SDA and SCL, and that the OLED is the 4-pin I2C kind
+--- Summary ---
+FAIL SDA line: reads LOW even with the internal pull-up: shorted to GND, or held low by a device. Unplug USB and check the wiring
+FAIL OLED address: no I2C device answered. Check VCC, GND, SDA and SCL, and that the OLED is the 4-pin I2C kind
+HW_CHECK RESULT: FAIL  (8 pass, 0 warn, 2 fail)
+run 2: FAIL, OLED NOT found, same as the previous run (1 in a row)
+run 3: FAIL, OLED NOT found, same as the previous run (2 in a row)
+
+################ simulated scenario: no_pullups
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads LOW
+[WARN] SDA line: no strong external pull-up detected. The OLED module may have none. I2C may still work on the ESP32's weaker internal pull-ups but is less reliable
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads LOW
+[WARN] SCL line: no strong external pull-up detected. The OLED module may have none. I2C may still work on the ESP32's weaker internal pull-ups but is less reliable
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+WARN SDA line: no strong external pull-up detected. The OLED module may have none. I2C may still work on the ESP32's weaker internal pull-ups but is less reliable
+WARN SCL line: no strong external pull-up detected. The OLED module may have none. I2C may still work on the ESP32's weaker internal pull-ups but is less reliable
+HW_CHECK RESULT: WARN  (10 pass, 2 warn, 0 fail)
+run 2: WARN, OLED found, same as the previous run (1 in a row)
+run 3: WARN, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: intermittent
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 172 of 200 acknowledged
+Probes at 400 kHz: 171 of 200 acknowledged
+[FAIL] probes at 100 kHz: intermittent: some probes were not acknowledged. Check wire contact and length
+[FAIL] probes at 400 kHz: intermittent: some probes were not acknowledged. Check wire contact and length
+--- Summary ---
+FAIL probes at 100 kHz: intermittent: some probes were not acknowledged. Check wire contact and length
+FAIL probes at 400 kHz: intermittent: some probes were not acknowledged. Check wire contact and length
+HW_CHECK RESULT: FAIL  (10 pass, 0 warn, 2 fail)
+run 2: FAIL, OLED found, same as the previous run (1 in a row)
+
+hw_check: something changed since the previous run. Full report:
+
+========== hw_check run 3 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 171 of 200 acknowledged
+Probes at 400 kHz: 172 of 200 acknowledged
+[FAIL] probes at 100 kHz: intermittent: some probes were not acknowledged. Check wire contact and length
+[FAIL] probes at 400 kHz: intermittent: some probes were not acknowledged. Check wire contact and length
+--- Summary ---
+FAIL probes at 100 kHz: intermittent: some probes were not acknowledged. Check wire contact and length
+FAIL probes at 400 kHz: intermittent: some probes were not acknowledged. Check wire contact and length
+HW_CHECK RESULT: FAIL  (10 pass, 0 warn, 2 fail)
+
+################ simulated scenario: slow_only
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: no devices answered
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 0 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[FAIL] probes at 400 kHz: no probe was acknowledged
+--- Summary ---
+FAIL probes at 400 kHz: no probe was acknowledged
+HW_CHECK RESULT: FAIL  (11 pass, 0 warn, 1 fail)
+run 2: FAIL, OLED found, same as the previous run (1 in a row)
+run 3: FAIL, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: wrong_chip_s3
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32-S3
+Model (SDK name) : ESP32-S3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[FAIL] chip: NOT a classic ESP32. The firmware is built for the classic ESP32 only. Stop and report this
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+FAIL chip: NOT a classic ESP32. The firmware is built for the classic ESP32 only. Stop and report this
+HW_CHECK RESULT: FAIL  (11 pass, 0 warn, 1 fail)
+run 2: FAIL, OLED found, same as the previous run (1 in a row)
+run 3: FAIL, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: no_ble
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi 
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[FAIL] radios: no BLE. The project needs BLE. Stop and report this
+[PASS] cpu: dual core at 240 MHz, as expected
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+FAIL radios: no BLE. The project needs BLE. Stop and report this
+HW_CHECK RESULT: FAIL  (11 pass, 0 warn, 1 fail)
+run 2: FAIL, OLED found, same as the previous run (1 in a row)
+run 3: FAIL, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: flash_2mb
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4015 (manufacturer 0xEF, capacity code 0x15)
+Flash from chip  : 2097152 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[FAIL] flash: flash is smaller than the 4 MB the firmware's partition table assumes. It will not boot. Stop and report this
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+FAIL flash: flash is smaller than the 4 MB the firmware's partition table assumes. It will not boot. Stop and report this
+HW_CHECK RESULT: FAIL  (11 pass, 0 warn, 1 fail)
+run 2: FAIL, OLED found, same as the previous run (1 in a row)
+run 3: FAIL, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: flash_8mb
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4017 (manufacturer 0xEF, capacity code 0x17)
+Flash from chip  : 8388608 bytes
+Flash per SDK    : 8388608 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[WARN] flash: flash is larger than the expected 4 MB. Harmless: the firmware uses a 4 MB layout. Note the size
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+WARN flash: flash is larger than the expected 4 MB. Harmless: the firmware uses a 4 MB layout. Note the size
+HW_CHECK RESULT: WARN  (11 pass, 1 warn, 0 fail)
+run 2: WARN, OLED found, same as the previous run (1 in a row)
+run 3: WARN, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: flash_unreadable
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 2 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : could not be read
+Flash from chip  : 0 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[PASS] cpu: dual core at 240 MHz, as expected
+[WARN] flash: 4 MB according to the SDK, but the chip's own size could not be read. Confirm with: esptool flash-id
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+WARN flash: 4 MB according to the SDK, but the chip's own size could not be read. Confirm with: esptool flash-id
+HW_CHECK RESULT: WARN  (11 pass, 1 warn, 0 fail)
+run 2: WARN, OLED found, same as the previous run (1 in a row)
+run 3: WARN, OLED found, same as the previous run (2 in a row)
+
+################ simulated scenario: single_core
+
+MotoNav hw_check (diagnostic, not the MotoNav firmware)
+config: 128x64 display, expected address 0x3C, SDA=GPIO21 SCL=GPIO22
+
+========== hw_check run 1 ==========
+--- Chip and board ---
+Silicon model    : ESP32 (classic)
+Model (SDK name) : ESP32-D0WD-V3
+Revision         : 301
+CPU              : 1 core(s) at 240 MHz
+Radios           : Wi-Fi BLE Bluetooth-Classic
+MAC (eFuse)      : 240AC4123456
+Flash JEDEC id   : 0xEF4016 (manufacturer 0xEF, capacity code 0x16)
+Flash from chip  : 4194304 bytes
+Flash per SDK    : 4194304 bytes
+[PASS] chip: classic ESP32, as expected
+[PASS] radios: Wi-Fi and BLE present
+[WARN] cpu: not dual core at 240 MHz. Single-core or slower variants exist. The Phase 1 firmware does not need the second core, but report it
+[PASS] flash: 4 MB, as expected (read from the flash chip itself)
+--- I2C pins and electrical state ---
+Configured: SDA=GPIO21 SCL=GPIO22
+[PASS] SDA pin: usable for I2C
+[PASS] SCL pin: usable for I2C
+[PASS] pin pair: SDA and SCL are different pins
+SDA line (GPIO21): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SDA line: a strong external pull-up resistor is present (good)
+SCL line (GPIO22): with internal pull-up reads HIGH, with internal pull-down reads HIGH
+[PASS] SCL line: a strong external pull-up resistor is present (good)
+--- I2C bus ---
+100 kHz: device at 0x3C
+400 kHz: device at 0x3C
+Scan results at 100 kHz: ack=1 nack-on-address=125 nack-on-data=0 other=0 timeout=0
+(Informational. Empty addresses normally all report the same code. A mixture of codes can mean noise.)
+[PASS] OLED address: OLED found at the configured address
+OLED detected at 0x3C
+Probes at 100 kHz: 200 of 200 acknowledged
+Probes at 400 kHz: 200 of 200 acknowledged
+[PASS] probes at 100 kHz: every probe was acknowledged
+[PASS] probes at 400 kHz: every probe was acknowledged
+--- Summary ---
+WARN cpu: not dual core at 240 MHz. Single-core or slower variants exist. The Phase 1 firmware does not need the second core, but report it
+HW_CHECK RESULT: WARN  (11 pass, 1 warn, 0 fail)
+run 2: WARN, OLED found, same as the previous run (1 in a row)
+run 3: WARN, OLED found, same as the previous run (2 in a row)
+

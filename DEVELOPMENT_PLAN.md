@@ -93,11 +93,11 @@ and before any manufacturing commitment.
 
 11. **Hardware identified only from product listings.** The chip, display size, address
     and wiring are unverified. Nothing can be **device-tested** (criteria 2, 4,
-    5-device, 6-device, 7) until the validation H1-H5 passes and the board is flashed.
+    5-device, 6-device, 7) until the validation tests T1 to T3 pass and the board is flashed.
     The firmware refuses to build for a non-classic chip and the diagnostics report the
     real chip, so a wrong assumption is caught early rather than silently.
 12. **"SSD1306" may actually be SH1106.** Phase 1 only drives an SSD1306. A mismatch shows
-    as a missing left edge and a speckled right edge. `oled_check` tests for it (H5). If it
+    as a missing left edge and a speckled right edge. `oled_check` tests for it (T3). If it
     is an SH1106, one display adapter has to be written; the screens do not change.
 13. **Readability.** A small monochrome OLED is hard to read in direct sunlight,
     and static content can cause burn-in over long periods. This affects the
@@ -139,7 +139,7 @@ data. No Bluetooth, no Android.
 30-pin DevKit with CP2102, 0.96 inch 128x64 four-pin I2C OLED, expected SSD1306, wiring
 SDA=GPIO21, SCL=GPIO22. These are now in `firmware/platformio.ini` and
 [HARDWARE.md](HARDWARE.md), but **none is verified**, and the OLED's I2C address is still
-unknown (0x3C is a guess). Verification is the hardware validation H1-H5 in
+unknown (0x3C is a guess). Verification is the hardware validation tests T1 to T6 in
 [TESTING.md](TESTING.md), using the `hw_check` and `oled_check` diagnostics.
 
 ### Approach
@@ -216,16 +216,17 @@ rendered images on a normal computer. "Device" = the real board, **not done**.
 | # | Criterion | Host result | Device result |
 |---|---|---|---|
 | 1 | Firmware builds for the target board | **Compile-checked** (not run) for `esp32doit-devkit-v1`, the provisional target: the firmware and two diagnostics, 0 warnings. Building for any other chip is refused. The real board is not yet verified. | n/a |
-| 2 | Display initialises reliably; failed init recovers | Logic written (probe, retry every 2 s, no reboot loop). **Not host-testable.** | **Not run.** Needs the board (D1, D2). |
-| 3 | All five screens render as specified | **Pass**: every screen at 128x64 and 128x32, bounds-checked, images reviewed | **Not run** (D3) |
-| 4 | All 10 arrows recognisable | Images reviewed by the AI assistant and judged recognisable after two fixes. All 11 icons pairwise different, left/right mirrored. This is a judgement on a bitmap, not on the panel. | **Not run** (D4) |
-| 5 | Distance is the largest text; formatting rules unit-tested at the boundaries | **Pass**: 33 boundary cases, plus a property check over 0-30,000 m | **Not run** (D5) |
-| 6 | Flushes only on change | **Pass**: 604 frames for 1,720 ticks over two script loops, equal to the independently counted number of visible changes | **Not run** (D6) |
-| 7 | 12-hour soak, no reset, stable heap | Statistics line implemented (uptime, free heap, minimum heap, frames). **Not host-testable.** | **Not run** (D7) |
+| 2 | Display initialises reliably; failed init recovers | Logic written (probe, retry every 2 s, no reboot loop, hint if the OLED is at the other address). **Not host-testable.** | **Not run.** Needs the board (T4.1, T4.2). |
+| 3 | All five screens render as specified | **Pass**: every screen at 128x64 and 128x32, bounds-checked, images reviewed | **Not run** (T4.3) |
+| 4 | All 10 arrows recognisable | Images reviewed by the AI assistant and judged recognisable after two fixes. All 11 icons pairwise different, left/right mirrored. This is a judgement on a bitmap, not on the panel. | **Not run** (T4.4) |
+| 5 | Distance is the largest text; formatting rules unit-tested at the boundaries | **Pass**: 33 boundary cases, plus a property check over 0-30,000 m; the `d` serial command steps through every rule | **Not run** (T4.5, T4.6) |
+| 6 | Flushes only on change | **Pass**: 604 frames for 1,720 ticks over two script loops, equal to the independently counted number of visible changes | **Not run** (T4.7) |
+| 7 | 12-hour soak, no reset, stable heap | The firmware logs a stats line a minute (heap, largest block, stack, frames, slowest display update, render mismatches) and the reset reason. A log analyser judges it against fixed criteria. **Host-tested** against synthetic logs built with the firmware's own formatters. The soak itself is not host-testable. | **Not run.** 30 minutes first (T5), then 12 hours (T6). |
 | 8 | `TESTING.md` records results, marking Host vs Device | **Done** | — |
 
-**Phase 1 cannot be called complete until the hardware validation (H1-H5) and D1-D7 are run
-on the real board.** What is done is everything that can be proven without hardware.
+**Phase 1 cannot be called complete until the hardware validation tests T1 to T6 are run on
+the real board** (T6, the 12-hour soak, is the extended reliability test; T5, 30 minutes, is
+the first gate). What is done is everything that can be proven without hardware.
 
 ### Deviations from the approved plan
 

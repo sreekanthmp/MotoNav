@@ -16,8 +16,8 @@ Status vocabulary: **Implemented**, **Tested**, **Partially implemented**,
 | Area | Status | Notes |
 |---|---|---|
 | Phase 0 — discovery and planning | Implemented (documents only) | Approved. |
-| Phase 1 — display prototype | Implemented and host-tested. **Not device-tested.** | Awaiting your review. Results in [TESTING.md](TESTING.md). |
-| ESP32 firmware: model, screens, simulation | Host-tested | 34 automated tests pass on a normal computer. |
+| Phase 1 — display prototype | Implemented and host-tested. **Not device-tested.** | Approved. Physical hardware validation (T1-T6) is prepared and **not yet run**. Results in [TESTING.md](TESTING.md). |
+| ESP32 firmware: model, screens, simulation, diagnostics logic | Host-tested | 53 C++ and 56 Python tests pass on a normal computer. |
 | ESP32 firmware: device code (`main.cpp`, SSD1306 adapter) | Compile-checked for the classic-ESP32 DevKit target (0 warnings). **Never run on a board.** | See [TESTING.md](TESTING.md). |
 | BLE protocol | Planned | Phase 2. Not started. |
 | Android app | Planned | Phase 3. |
@@ -33,23 +33,24 @@ Android code.
 
 ## Try it
 
-Host tests and screen images (need only `g++` and `make`; Python with Pillow
-for the contact sheet):
+Host tests and screen images (need `g++`, `make` and Python 3; Pillow for the images):
 
 ```bash
 cd firmware/host
-make test      # layering check + 34 tests, with sanitizers
-make render    # writes out/*.pbm and out/montage_*.png to look at
+make test        # layering check + 53 C++ tests, with sanitizers
+make test-tools  # 56 Python tests: diagnostics simulations, log analyser, docs check
+make render      # writes out/*.pbm and out/montage_*.png to look at
 ```
 
-On the board, in this order (details in [HARDWARE.md](HARDWARE.md) section 4 and
-[TESTING.md](TESTING.md) section 3):
+On the board, in this order. The full procedures, expected output and pass/fail
+criteria are in [TESTING.md](TESTING.md) section 3 (tests T1 to T6):
 
 ```bash
 cd firmware
-pio run -e hw_check   -t upload && pio device monitor   # chip identity + I2C scan
-pio run -e oled_check -t upload && pio device monitor   # SSD1306 or SH1106?
-pio run -e motonav    -t upload && pio device monitor   # the firmware
+pio run -e hw_check   -t upload && pio device monitor   # T1 chip identity, T2 I2C detection
+pio run -e oled_check -t upload && pio device monitor   # T3 SSD1306 or SH1106?
+pio run -e motonav    -t upload && pio device monitor   # T4 the firmware; T5/T6 long runs
+python host/analyze_log.py t5.log --min-minutes 30      # judge a long-run log
 ```
 
 ## Documents

@@ -153,12 +153,15 @@ rather than carried unused now.
 core/   NavSnapshot, DeviceState, distance formatting     no display, no BLE, no Arduino
 sim/    scripted navigation data + serial test commands   core only
 ui/     ScreenView, screens, icons, Presenter, Canvas     core + Canvas interface only
-src/    main.cpp, SSD1306 Canvas adapter, pin config      the only code that touches hardware
+diag/   diagnostic verdicts, log-line formats, frame      standard headers only (reads no hardware)
+        consistency check
+src/    main.cpp, SSD1306 Canvas adapter, pin config,     the only code that touches hardware
+        tools/hw_check.cpp, tools/oled_check.cpp
 ```
 
-`firmware/host/check_layering.sh` fails the build if `core/`, `sim/` or `ui/`
-include Arduino, Wire, a display driver or a radio header, or if `core/`
-includes `ui/` or `sim/`. It was checked by deliberately breaking the rule.
+`firmware/host/check_layering.sh` fails the build if `core/`, `sim/`, `ui/` or `diag/`
+include Arduino, Wire, a display driver or a radio header, or if `core/` includes `ui/`,
+`sim/` or `diag/`. It was checked by deliberately breaking the rule.
 
 ### Rendering path (Implemented)
 
@@ -234,12 +237,19 @@ MotoNav/
     ├── lib/motonav/src/          hardware-independent code, built for the device AND the host
     │   ├── core/                 nav_model, distance_format
     │   ├── sim/                  scripted simulation + serial command controller
-    │   └── ui/                   canvas, view, icons, screens, presenter, text
-    └── host/                     host-side tests and rendering (no PlatformIO, no hardware)
-        ├── Makefile  check_layering.sh  montage.py  render_screens.cpp
+    │   ├── ui/                   canvas, view, icons, screens, presenter, text
+    │   └── diag/                 hw_verdict (pass/warn/fail rules), log_format, frame_check
+    └── host/                     host-side tests and simulation (no PlatformIO, no hardware)
+        ├── Makefile  check_layering.sh  montage.py  render_screens.cpp  t4_script.cpp
         ├── bitmap_canvas.h  font5x7.h  test_framework.h
-        ├── tests/                34 tests
+        ├── tests/                53 C++ tests
+        ├── shim/                 host-only stand-ins for Arduino/ESP32/Adafruit + a simulated board
+        ├── hw_check_sim.cpp  oled_check_sim.cpp  stats_sample.cpp   run the real tools / make synthetic logs
+        ├── analyze_log.py        judges a long-run serial log (T5, T6)
+        ├── tests_py/             56 Python tests
         └── golden/screens.txt    regression hashes of every screen at 128x64 and 128x32
+
+docs/reference/                   generated images and expected outputs used by TESTING.md
 ```
 
 **Planned (not started):**

@@ -1,0 +1,38 @@
+# Screens
+> 0   expect: screen=Disconnected
+> 1   expect: screen=Ready
+> 2   expect: screen=Navigating icon=Straight distance="450 m" road="Main Street"
+> 3   expect: screen=Rerouting
+> 4   expect: screen=Arrived
+# Maneuvers: press 2, then n eleven times (the eleventh wraps back to Straight)
+> 2   expect: screen=Navigating icon=Straight distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=TurnLeft distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=TurnRight distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=SlightLeft distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=SlightRight distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=SharpLeft distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=SharpRight distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=UTurnLeft distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=UTurnRight distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=Roundabout exit=2 distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=Arrived distance="450 m" road="Main Street"
+> n   expect: screen=Navigating icon=Straight distance="450 m" road="Main Street"
+# Distances: press d ten times (the tenth wraps back to 450 m)
+> d   expect: screen=Navigating icon=Straight distance="90 m" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="0 m" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="10 m" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="1.0 km" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="1.2 km" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="9.9 km" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="12 km" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="999 km" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="--" road="Main Street"
+> d   expect: screen=Navigating icon=Straight distance="450 m" road="Main Street"
+# Road names: press r five times (the fifth wraps back to Main Street)
+> r   expect: screen=Navigating icon=Straight distance="450 m" road="Sir Mokshagundam Visvesvaraya R"
+> r   expect: screen=Navigating icon=Straight distance="450 m" road=""
+> r   expect: screen=Navigating icon=Straight distance="450 m" road=""
+> r   expect: screen=Navigating icon=Straight distance="450 m" road="Caf? Road"
+> r   expect: screen=Navigating icon=Straight distance="450 m" road="Main Street"
+# Back to automatic
+> a   (automatic mode, no expect line)
