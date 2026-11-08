@@ -21,8 +21,9 @@ const Maneuver kOrder[kManeuverCount] = {
     Maneuver::Roundabout, Maneuver::Arrived,
 };
 
-// Includes a name that is too long for the display and one with no name.
-const char* const kRoads[] = {
+// Used by the running script. Includes a name that is too long for the display
+// and one with no name.
+const char* const kScriptRoads[] = {
     "Main Street",
     "MG Road",
     "Outer Ring Road",
@@ -31,7 +32,25 @@ const char* const kRoads[] = {
     "",
     "Pacific Coast Highway",
 };
-constexpr int kRoadCount = sizeof(kRoads) / sizeof(kRoads[0]);
+constexpr int kScriptRoadCount = sizeof(kScriptRoads) / sizeof(kScriptRoads[0]);
+
+// Used by the `d` command: every rule of the distance formatting, in order.
+// Expected display: 450 m, 90 m, 0 m, 10 m, 1.0 km, 1.2 km, 9.9 km, 12 km,
+// 999 km, --
+const uint32_t kTestDistances[] = {450, 90, 0, 9, 975, 1200, 9949, 12000, 999500, kDistanceUnknown};
+constexpr int kTestDistanceCount = sizeof(kTestDistances) / sizeof(kTestDistances[0]);
+
+// Used by the `r` command. Expected display: Main Street / a name cut to
+// "Sir Mokshagundam V..." / no road line / no road line (Malayalam only, no
+// ASCII letters) / "Caf? Road".
+const char* const kTestRoads[] = {
+    "Main Street",
+    "Sir Mokshagundam Visvesvaraya Road",
+    "",
+    "\xE0\xB4\xAE\xE0\xB4\xB2\xE0\xB4\xAA\xE0\xB5\x8D\xE0\xB4\xAA\xE0\xB5\x81\xE0\xB4\xB1\xE0\xB4\x82",
+    "Caf\xC3\xA9 Road",
+};
+constexpr int kTestRoadCount = sizeof(kTestRoads) / sizeof(kTestRoads[0]);
 
 constexpr uint32_t kLoopMs = kDisconnectedMs + kReadyMs +
                              kManeuverCount * kManeuverMs + kReroutingMs +
@@ -44,12 +63,12 @@ DeviceState connected(NavMode mode) {
   return s;
 }
 
-DeviceState navigating(int maneuverIndex, uint32_t distanceM) {
+DeviceState navigating(int maneuverIndex, uint32_t distanceM, const char* road) {
   DeviceState s = connected(NavMode::Navigating);
   s.nav.maneuver = kOrder[maneuverIndex];
   s.nav.distanceToManeuverM = distanceM;
   s.nav.roundaboutExit = s.nav.maneuver == Maneuver::Roundabout ? 2 : 0;
-  setRoadName(s.nav, kRoads[maneuverIndex % kRoadCount]);
+  setRoadName(s.nav, road);
   return s;
 }
 
@@ -71,7 +90,7 @@ DeviceState SimScript::at(uint32_t ms) {
     const uint32_t within = t % kManeuverMs;
     const uint32_t distance =
         kStartDistanceM - ((kStartDistanceM - kEndDistanceM) * within) / kManeuverMs;
-    return navigating(index, distance);
+    return navigating(index, distance, kScriptRoads[index % kScriptRoadCount]);
   }
   t -= kManeuverCount * kManeuverMs;
 
@@ -81,6 +100,16 @@ DeviceState SimScript::at(uint32_t ms) {
   if (t < kArrivedMs) return connected(NavMode::Arrived);
 
   return connected(NavMode::Ready);  // navigation stopped
+}
+
+int SimController::testDistanceCount() { return kTestDistanceCount; }
+uint32_t SimController::testDistance(int index) { return kTestDistances[index % kTestDistanceCount]; }
+int SimController::testRoadCount() { return kTestRoadCount; }
+const char* SimController::testRoad(int index) { return kTestRoads[index % kTestRoadCount]; }
+
+void SimController::holdNavigating() {
+  auto_ = false;
+  held_ = navigating(heldManeuver_, kTestDistances[heldDistance_], kTestRoads[heldRoad_]);
 }
 
 bool SimController::handleCommand(char command, uint32_t nowMs) {
@@ -98,8 +127,7 @@ bool SimController::handleCommand(char command, uint32_t nowMs) {
       held_ = connected(NavMode::Ready);
       return true;
     case '2':
-      auto_ = false;
-      held_ = navigating(heldManeuver_, 450);
+      holdNavigating();
       return true;
     case '3':
       auto_ = false;
@@ -110,9 +138,16 @@ bool SimController::handleCommand(char command, uint32_t nowMs) {
       held_ = connected(NavMode::Arrived);
       return true;
     case 'n':
-      auto_ = false;
       heldManeuver_ = (heldManeuver_ + 1) % kManeuverCount;
-      held_ = navigating(heldManeuver_, 450);
+      holdNavigating();
+      return true;
+    case 'd':
+      heldDistance_ = (heldDistance_ + 1) % kTestDistanceCount;
+      holdNavigating();
+      return true;
+    case 'r':
+      heldRoad_ = (heldRoad_ + 1) % kTestRoadCount;
+      holdNavigating();
       return true;
     default:
       return false;

@@ -6,3 +6,6 @@ firmware/host/out/
 # Editors / OS
 .vscode/
 .DS_Store
+firmware/logs/
+*.log
+__pycache__/

@@ -62,4 +62,7 @@ struct DeviceState {
 // nullptr clears the name.
 void setRoadName(NavSnapshot& snapshot, const char* name);
 
+// Short identifier such as "TurnLeft", for logs and serial output.
+const char* maneuverName(Maneuver m);
+
 }  // namespace motonav

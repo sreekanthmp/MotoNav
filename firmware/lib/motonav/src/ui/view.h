@@ -37,6 +37,13 @@ inline bool operator!=(const ScreenView& a, const ScreenView& b) {
 
 ScreenView buildView(const DeviceState& state);
 
+const char* screenName(Screen s);  // "Navigating", for logs and serial output
+
+// Writes a one-line, human-readable description of exactly what the view shows,
+// for example:  screen=Navigating icon=TurnLeft distance="450 m" road="Main Street"
+// Used by the firmware's serial output so a tester can compare screen and text.
+void describeView(const ScreenView& view, char* out, size_t outSize);
+
 // Short upper-case instruction for a maneuver ("TURN LEFT"). Every string is
 // short enough for the navigation panel on a 128-pixel-wide display.
 const char* instructionText(Maneuver m);

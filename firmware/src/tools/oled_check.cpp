@@ -11,8 +11,10 @@
 // both easy to see. See HARDWARE.md ("Verifying the hardware") for how to read
 // them.
 //
-// Patterns change every 6 seconds. Type 1, 2 or 3 on the serial monitor to
-// hold one, or 'a' to cycle again.
+// Patterns 1 to 3 tell an SSD1306 from an SH1106. Patterns 4 and 5 check the
+// 128x64 geometry and look for scrambled graphics, stuck pixels and noise.
+// Patterns change every 6 seconds. Type 1 to 5 on the serial monitor to hold
+// one, or 'a' to cycle again.
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Arduino.h>
@@ -23,7 +25,7 @@
 namespace {
 
 constexpr uint32_t kPatternMs = 6000;
-constexpr int kPatternCount = 3;
+constexpr int kPatternCount = 5;
 
 Adafruit_SSD1306 oled(MOTONAV_OLED_WIDTH, MOTONAV_OLED_HEIGHT, &Wire, -1);
 
@@ -77,22 +79,54 @@ void drawEdgeColumnsPattern() {
   oled.display();
 }
 
+// Pattern 4: a grid. Horizontal lines at the top of each of the controller's 8
+// pixel-high pages (y = 0, 8, ... 56) and the bottom row, vertical lines every
+// 16 pixels. A correct 128x64 panel shows a regular grid of 8 rows by 8
+// columns. A wrong panel height, swapped pages or scrambled data show up as
+// uneven, broken or repeated cells.
+void drawGridPattern() {
+  const int w = oled.width();
+  const int h = oled.height();
+  oled.clearDisplay();
+  for (int y = 0; y < h; y += 8) oled.drawFastHLine(0, y, w, SSD1306_WHITE);
+  oled.drawFastHLine(0, h - 1, w, SSD1306_WHITE);
+  for (int x = 0; x < w; x += 16) oled.drawFastVLine(x, 0, h, SSD1306_WHITE);
+  oled.drawFastVLine(w - 1, 0, h, SSD1306_WHITE);
+  oled.display();
+}
+
+// Pattern 5: every pixel off. A healthy panel is completely dark. Any lit pixel,
+// speckle or stripe is a stuck pixel, noise or a controller mismatch.
+void drawAllOffPattern() {
+  oled.clearDisplay();
+  oled.display();
+}
+
+const char* patternDescription(int index) {
+  switch (index) {
+    case 0: return "border (expect all four sides)";
+    case 1: return "all pixels on (expect solid white to every edge)";
+    case 2: return "edge columns (expect 4 lines at each side, 2 px apart)";
+    case 3: return "grid (expect 8 rows x 8 columns of regular cells)";
+    default: return "all pixels off (expect completely dark)";
+  }
+}
+
 void showPattern() {
   switch (pattern) {
     case 0: drawBorderPattern(); break;
     case 1: drawAllOnPattern(); break;
-    default: drawEdgeColumnsPattern(); break;
+    case 2: drawEdgeColumnsPattern(); break;
+    case 3: drawGridPattern(); break;
+    default: drawAllOffPattern(); break;
   }
-  Serial.printf("pattern %d of %d: %s\n", pattern + 1, kPatternCount,
-                pattern == 0 ? "border (expect all four sides)"
-                : pattern == 1 ? "all pixels on (expect solid white to every edge)"
-                               : "edge columns (expect 4 lines at each side, 2 px apart)");
+  Serial.printf("pattern %d of %d: %s\n", pattern + 1, kPatternCount, patternDescription(pattern));
 }
 
 void handleSerial() {
   while (Serial.available() > 0) {
     const int c = Serial.read();
-    if (c >= '1' && c <= '3') {
+    if (c >= '1' && c <= '5') {
       cycling = false;
       pattern = c - '1';
       showPattern();
@@ -127,7 +161,7 @@ void setup() {
     return;
   }
   displayReady = true;
-  Serial.println("Driving the panel as an SSD1306. Keys: 1/2/3 hold a pattern, a = cycle.");
+  Serial.println("Driving the panel as an SSD1306. Keys: 1 to 5 hold a pattern, a = cycle.");
   showPattern();
   patternStartMs = millis();
 }

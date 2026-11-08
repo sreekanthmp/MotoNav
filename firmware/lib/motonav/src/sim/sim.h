@@ -23,7 +23,11 @@ class SimScript {
 //   0   hold the Disconnected screen      1   hold Ready
 //   2   hold Navigating                   3   hold Rerouting
 //   4   hold Arrived
-//   n   hold Navigating and step to the next maneuver
+//   n   hold Navigating and step to the next maneuver (wraps after 11)
+//   d   hold Navigating and step to the next test distance
+//   r   hold Navigating and step to the next test road name
+// Held Navigating shows the current maneuver, distance and road together, so
+// the three step commands can be combined.
 class SimController {
  public:
   // Returns false for characters that are not commands.
@@ -31,11 +35,22 @@ class SimController {
   DeviceState state(uint32_t nowMs) const;
   bool isAuto() const { return auto_; }
 
+  // The test values the `d` and `r` commands cycle through. Exposed so tests
+  // and documentation cannot drift from the firmware.
+  static int testDistanceCount();
+  static uint32_t testDistance(int index);
+  static int testRoadCount();
+  static const char* testRoad(int index);
+
  private:
+  void holdNavigating();
+
   bool auto_ = true;
   uint32_t autoStartMs_ = 0;
   DeviceState held_;
   int heldManeuver_ = 0;
+  int heldDistance_ = 0;
+  int heldRoad_ = 0;
 };
 
 }  // namespace motonav

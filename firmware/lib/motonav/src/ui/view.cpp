@@ -1,5 +1,6 @@
 #include "ui/view.h"
 
+#include <stdio.h>
 #include <string.h>
 
 namespace motonav {
@@ -96,6 +97,30 @@ ScreenView buildView(const DeviceState& state) {
       break;
   }
   return v;
+}
+
+const char* screenName(Screen s) {
+  switch (s) {
+    case Screen::Disconnected: return "Disconnected";
+    case Screen::Ready:        return "Ready";
+    case Screen::Navigating:   return "Navigating";
+    case Screen::Rerouting:    return "Rerouting";
+    case Screen::Arrived:      return "Arrived";
+  }
+  return "?";
+}
+
+void describeView(const ScreenView& v, char* out, size_t outSize) {
+  if (outSize == 0) return;
+  if (v.screen != Screen::Navigating) {
+    snprintf(out, outSize, "screen=%s", screenName(v.screen));
+    return;
+  }
+  char exitText[16] = "";
+  if (v.roundaboutExit != 0) snprintf(exitText, sizeof(exitText), " exit=%u", static_cast<unsigned>(v.roundaboutExit));
+  snprintf(out, outSize, "screen=Navigating icon=%s%s distance=\"%s%s%s\" road=\"%s\"",
+           maneuverName(v.maneuver), exitText, v.distance.value,
+           v.distance.unit[0] != '\0' ? " " : "", v.distance.unit, v.road);
 }
 
 const char* instructionText(Maneuver m) {
